@@ -999,20 +999,35 @@ function buildRouteField(q, f) {
         changed();
         draw();
     });
+    // Full screen moves the map into its own layer on <body>: inside the
+    // scrolling form, iPhone Safari clips even a position:fixed element.
+    let overlay = null, slot = null;
+    const isFull = () => slot !== null;
     const setFull = on => {
-        q.classList.toggle('route-full', on);
+        if (on === isFull()) return;
+        if (on) {
+            if (!overlay) { overlay = el('div', 'route-overlay'); document.body.appendChild(overlay); }
+            slot = document.createComment('route-map');
+            box.before(slot);
+            overlay.appendChild(box);
+            overlay.classList.add('open');
+        } else {
+            slot.replaceWith(box);
+            slot = null;
+            overlay.classList.remove('open');
+        }
         document.body.classList.toggle('route-full-open', on);
         setTimeout(() => { if (map) { map.invalidateSize(); fitToRoute(); } }, 150);
     };
     // The phone's Back button minimizes the map instead of leaving the survey.
     const closeFull = () => {
-        if (!q.classList.contains('route-full')) return;
+        if (!isFull()) return;
         if (history.state && history.state.routeFull) history.back();
         else setFull(false);
     };
-    window.addEventListener('popstate', () => { if (q.classList.contains('route-full')) setFull(false); });
+    window.addEventListener('popstate', () => { if (isFull()) setFull(false); });
     btnFull.addEventListener('click', () => {
-        if (q.classList.contains('route-full')) return;
+        if (isFull()) return;
         try { history.pushState({ routeFull: true }, ''); } catch (e) {}
         setFull(true);
     });

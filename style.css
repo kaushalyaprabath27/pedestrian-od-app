@@ -577,35 +577,37 @@ body.has-host-badge .save-bar { padding-right: 240px; }
 .route-pt span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #2563eb; color: #fff; font: 700 12px 'Inter', sans-serif; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
 .route-pt.start span { background: #059669; }
 .route-pt.end span { background: #dc2626; }
-.q.route-full { position: fixed; inset: 0; z-index: 350; margin: 0; border-radius: 0; display: flex; flex-direction: column; background: var(--sheet-bg); padding-top: max(12px, env(safe-area-inset-top)); }
-.q.route-full .route-box { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.q.route-full .route-map { flex: 1; height: auto; }
-body.has-host-badge .q.route-full { padding-bottom: 76px; }
-/* Full screen: only the map, Minimize, the points line, Undo point and Save route. */
+/* Full screen: the map box moves into .route-overlay on <body>, showing only
+   the map, Minimize, the points line, Undo point and Save route. */
 .route-box { position: relative; }
 .route-min, .route-tools .route-save { display: none; }
-.q.route-full { padding: 0; }
-.q.route-full > .q-label, .q.route-full > .q-hint { display: none; }
-.q.route-full .route-map { border: 0; border-radius: 0; }
-.q.route-full .leaflet-control-zoom, .q.route-full .leaflet-control-layers { display: none; }
-.q.route-full .route-tools { display: grid; grid-template-columns: 1fr 1.3fr; gap: 10px; margin: 0; padding: 10px 12px max(10px, env(safe-area-inset-bottom)); }
-.q.route-full .route-tools .mini-btn { min-height: 52px; justify-content: center; font-size: 1rem; }
-.q.route-full .route-tools > :nth-child(2), .q.route-full .route-tools > :nth-child(3) { display: none; }
-.q.route-full .route-tools .route-save { display: inline-flex; background: var(--ok); border-color: var(--ok); color: #fff; }
-.q.route-full .route-min {
+.route-overlay { display: none; }
+.route-overlay.open {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100%; height: 100dvh; z-index: 450;
+    display: flex; flex-direction: column; background: var(--sheet-bg);
+}
+body.has-host-badge .route-overlay.open { padding-bottom: 76px; }
+.route-overlay .route-box { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.route-overlay .route-map { flex: 1; height: auto; min-height: 0; border: 0; border-radius: 0; }
+.route-overlay .leaflet-control-zoom, .route-overlay .leaflet-control-layers { display: none; }
+.route-overlay .route-tools { display: grid; grid-template-columns: 1fr 1.3fr; gap: 10px; margin: 0; padding: 10px 12px max(10px, env(safe-area-inset-bottom)); }
+.route-overlay .route-tools .mini-btn { min-height: 52px; justify-content: center; font-size: 1rem; }
+.route-overlay .route-tools > :nth-child(2), .route-overlay .route-tools > :nth-child(3) { display: none; }
+.route-overlay .route-tools .route-save { display: inline-flex; background: var(--ok); border-color: var(--ok); color: #fff; }
+.route-overlay .route-min {
     display: grid; place-items: center; position: absolute; z-index: 1001;
     top: max(12px, env(safe-area-inset-top)); left: 12px; width: 48px; height: 48px;
     border-radius: 50%; border: 0; background: rgba(17, 24, 39, 0.85); color: #fff; font-size: 1.2rem;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
-.q.route-full .route-info {
+.route-overlay .route-info {
     position: absolute; z-index: 1001; margin: 0;
     top: max(12px, env(safe-area-inset-top)); left: 72px; right: 12px; min-height: 48px;
     display: flex; align-items: center; padding: 6px 14px; border-radius: 24px;
     background: rgba(17, 24, 39, 0.85); color: #fff; font-weight: 600; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
-.q.route-full .route-info.ok { color: #6ee7b7; }
-.q.route-full .route-info.warn { color: #fcd34d; }
+.route-overlay .route-info.ok { color: #6ee7b7; }
+.route-overlay .route-info.warn { color: #fcd34d; }
 body.route-full-open .theme-btn, body.route-full-open .topbar, body.route-full-open .save-bar { visibility: hidden; }
 
 /* Several places (landmarks) as chips */
