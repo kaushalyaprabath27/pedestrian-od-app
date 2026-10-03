@@ -45,7 +45,7 @@ const THEME_KEY = 'pedod_theme';
 //   notes: 'placeholder' adds a free-text box under the options
 //   exclusive: an option that clears the others when picked (e.g. 'None')
 //   showIf: answers => boolean  shows the question only when true (numbered
-//   as a sub-question, e.g. 11a, and not counted while hidden)
+//   as a sub-question, e.g. 6a, and not counted while hidden)
 // An option can carry an icon: a Font Awesome name or inline SVG.
 // ---------------------------------------------------------------------
 const TUKTUK_SVG = '<svg class="svg-icon" viewBox="1.8 1.4 28.4 23" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M2.5 13V6.2Q2.5 2 7 2H24.2Q26.4 2 26.7 3.8L27.9 12.4H26.1L25.1 4.3H7.6Q5.3 4.3 5.3 6.6V13Z"/><path d="M3.5 12.6H27.4Q29.7 12.6 29.7 15Q29.7 16.4 28.6 17.6L27.8 18.6H10.77A3.6 3.6 0 0 0 5.23 18.6H4.6Q2.4 18.6 2.4 16.2V13.7Q2.4 12.6 3.5 12.6ZM27.5 14.6a0.85 0.85 0 1 0 1.7 0a0.85 0.85 0 1 0 -1.7 0Z"/><path d="M22.6 12.6L24.6 8.4L25.5 8.8L23.8 12.6Z"/><path d="M5 20.9a3 3 0 1 0 6 0a3 3 0 1 0 -6 0ZM6.9 20.9a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0ZM24 21.4a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0ZM25.6 21.4a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0 -1.8 0Z"/><path d="M26.05 18.4H26.95V20.5H26.05Z"/></svg>';
@@ -84,6 +84,16 @@ const FORM = [
     },
     { id: 'origin', label: 'Origin', type: 'place', presets: true, hint: 'Where this trip started', placeholder: 'Start typing a location' },
     { id: 'destination', label: 'Principal destination', type: 'place', presets: true, hint: 'Main place they are going to', placeholder: 'Start typing a location' },
+    { id: 'usedUnderpass', label: 'Did you use an underpass on this journey?', type: 'single', yesno: true, options: ['Yes', 'No'] },
+    // Follow-up shown only when the answer above is No.
+    {
+        id: 'underpassReason', label: 'Why not?', type: 'multi', other: true, grid: true,
+        showIf: a => a.usedUnderpass === 'No', hint: 'Tick all that apply',
+        options: [
+            ['Don’t know about underpasses', 'fa-circle-question'],
+            ['Difficult to use', 'fa-stairs']
+        ]
+    },
     {
         id: 'accessMode', label: 'Access mode used to enter study area', type: 'single', other: true, grid: true,
         options: MODES
@@ -107,16 +117,6 @@ const FORM = [
     },
     { id: 'entryPoint', label: 'Route used: entry point', type: 'place', presets: true, nearby: true, recent: true, hint: 'Where they entered the study area', placeholder: 'Junction, road or landmark' },
     { id: 'exitPoint', label: 'Route used: exit point', type: 'place', presets: true, nearby: true, recent: true, hint: 'Where they will leave it', placeholder: 'Junction, road or landmark' },
-    { id: 'usedUnderpass', label: 'Did you use an underpass on this journey?', type: 'single', yesno: true, options: ['Yes', 'No'] },
-    // Follow-up shown only when the answer above is No.
-    {
-        id: 'underpassReason', label: 'Why not?', type: 'multi', other: true, grid: true,
-        showIf: a => a.usedUnderpass === 'No', hint: 'Tick all that apply',
-        options: [
-            ['Don’t know about underpasses', 'fa-circle-question'],
-            ['Difficult to use', 'fa-stairs']
-        ]
-    },
     {
         id: 'walkTime', label: 'Approximate walking time', type: 'single',
         options: ['Under 5 min', '5–10 min', '10–15 min', 'Over 15 min']

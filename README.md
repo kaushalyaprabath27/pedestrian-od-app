@@ -12,12 +12,12 @@ Offline-first PWA for the pedestrian O–D and intercept survey (Section 5.1.2):
    3. Respondent / trip category (incl. School child, University student, Other student, Patient)
    4. Origin – suggests the 14 study-area locations (all of them when the box is empty), then map places; the typed text is always the first suggestion
    5. Principal destination – same
-   6. Access mode used to enter the study area
-   7. Egress mode used to leave the study area
-   8. Boarding / alighting / parking / drop-off location (+ optional name)
-   9. Route used: entry point – study-area list, points used before at this location, nearby places
-   10. Route used: exit point – same
-   11. Did you use an underpass on this journey? Yes / No – **No** opens **11a Why not?** (Don't know about underpasses / Difficult to use / Other; tick all that apply)
+   6. Did you use an underpass on this journey? Yes / No – **No** opens **6a Why not?** (Don't know about underpasses / Difficult to use / Other; tick all that apply)
+   7. Access mode used to enter the study area
+   8. Egress mode used to leave the study area
+   9. Boarding / alighting / parking / drop-off location (+ optional name)
+   10. Route used: entry point – study-area list, points used before at this location, nearby places
+   11. Route used: exit point – same
    12. Approximate walking time (Under 5 / 5–10 / 10–15 / Over 15 min)
    13. Existing barriers experienced – select all that apply, *None*, *Other* and details
    14. Priority improvements requested – select all that apply (incl. Signalized crossing, Elevated crossing), *None*, *Other* and details
