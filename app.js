@@ -830,9 +830,16 @@ function buildRouteField(q, f) {
     const btnUndo = mkBtn('fa-rotate-left', 'Undo point');
     const btnClear = mkBtn('fa-trash-can', 'Clear');
     const btnFull = mkBtn('fa-expand', 'Full screen');
-    tools.append(btnUndo, btnClear, btnFull);
+    // Full screen shows only: Minimize, the points line, Undo point and Save route.
+    const btnSave = mkBtn('fa-check', 'Save route');
+    btnSave.classList.add('route-save');
+    tools.append(btnUndo, btnClear, btnFull, btnSave);
+    const btnMin = el('button', 'route-min', '<i class="fa-solid fa-compress"></i>');
+    btnMin.type = 'button';
+    btnMin.title = 'Minimize';
+    btnMin.setAttribute('aria-label', 'Minimize map');
     const info = el('div', 'route-info');
-    box.append(mapEl, tools, info);
+    box.append(mapEl, btnMin, tools, info);
     q.appendChild(box);
 
     let map = null, layer = null, pending = 0;
@@ -992,12 +999,28 @@ function buildRouteField(q, f) {
         changed();
         draw();
     });
-    btnFull.addEventListener('click', () => {
-        const on = !q.classList.contains('route-full');
+    const setFull = on => {
         q.classList.toggle('route-full', on);
         document.body.classList.toggle('route-full-open', on);
-        btnFull.innerHTML = on ? '<i class="fa-solid fa-compress"></i> <span>Done</span>' : '<i class="fa-solid fa-expand"></i> <span>Full screen</span>';
         setTimeout(() => { if (map) { map.invalidateSize(); fitToRoute(); } }, 150);
+    };
+    // The phone's Back button minimizes the map instead of leaving the survey.
+    const closeFull = () => {
+        if (!q.classList.contains('route-full')) return;
+        if (history.state && history.state.routeFull) history.back();
+        else setFull(false);
+    };
+    window.addEventListener('popstate', () => { if (q.classList.contains('route-full')) setFull(false); });
+    btnFull.addEventListener('click', () => {
+        if (q.classList.contains('route-full')) return;
+        try { history.pushState({ routeFull: true }, ''); } catch (e) {}
+        setFull(true);
+    });
+    btnMin.addEventListener('click', closeFull);
+    btnSave.addEventListener('click', () => {
+        if (current().points.length < 2) { showToast('Tap the start and the end of the walk first', 'error'); return; }
+        closeFull();
+        showToast('Route saved');
     });
 
     renderers[f.id] = () => { draw(); fitToRoute(); };
