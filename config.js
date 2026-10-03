@@ -33,5 +33,11 @@ window.PEDOD_CONFIG = {
         'Kandy Hospital (WGM Entrance)',
         'Municipal Central Market'
     ],
-    surveyAreaCenter: { lat: 7.2906, lon: 80.6337 }
+    surveyAreaCenter: { lat: 7.2906, lon: 80.6337 },
+
+    // Route map: only this area can be viewed and tapped,
+    // [west, south, east, north] (Kandy town).
+    mapBounds: [80.618, 7.276, 80.655, 7.308],
+    // Map shown first: 'satellite' or 'street'.
+    mapDefaultLayer: 'satellite'
 };

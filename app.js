@@ -753,6 +753,8 @@ function buildPlaceField(q, f) {
 // joined by the walking route along the streets (OSM foot routing); if that
 // service can't be reached the pair is joined by a straight line instead.
 const ROUTE_SERVICE = 'https://routing.openstreetmap.de/routed-foot/route/v1/foot/';
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+const MAP_LAYER_KEY = 'pedod_map_layer';
 const mapRefreshers = [];
 
 function samePoint(a, b) { return a && b && a[0] === b[0] && a[1] === b[1]; }
@@ -913,14 +915,45 @@ function buildRouteField(q, f) {
     const ensureMap = () => {
         if (map) return true;
         if (typeof L === 'undefined') { updateInfo(); return false; }
-        const c = sessionLatLon() || { lat: 7.2906, lon: 80.6337 };
-        map = L.map(mapEl, { zoomControl: true, attributionControl: true }).setView([c.lat, c.lon], 16);
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
+        // Only the survey area (Kandy town) can be viewed and tapped.
+        const bb = CONFIG.mapBounds;
+        const area = Array.isArray(bb) && bb.length === 4 ? L.latLngBounds([bb[1], bb[0]], [bb[3], bb[2]]) : null;
+        const here = sessionLatLon();
+        const home = CONFIG.surveyAreaCenter || { lat: 7.2906, lon: 80.6337 };
+        const c = here && (!area || area.contains([here.lat, here.lon])) ? here : home;
+        map = L.map(mapEl, {
+            zoomControl: true, attributionControl: true, minZoom: area ? 15 : 3, maxZoom: 20,
+            maxBounds: area ? area.pad(0.05) : null, maxBoundsViscosity: 1.0
+        }).setView([c.lat, c.lon], 17);
+        const tileBounds = area ? area.pad(0.3) : undefined;
+        const satellite = L.layerGroup([
+            L.tileLayer(ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxNativeZoom: 19, maxZoom: 20, bounds: tileBounds,
+                attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics'
+            }),
+            // Road names on top of the photo.
+            L.tileLayer(ESRI + 'Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+                maxNativeZoom: 19, maxZoom: 20, bounds: tileBounds, opacity: 0.9
+            })
+        ]);
+        const street = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxNativeZoom: 19, maxZoom: 20, bounds: tileBounds,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
+        });
+        let saved = null;
+        try { saved = localStorage.getItem(MAP_LAYER_KEY); } catch (e) {}
+        const first = (saved || CONFIG.mapDefaultLayer || 'satellite') === 'street' ? street : satellite;
+        first.addTo(map);
+        L.control.layers({ 'Satellite': satellite, 'Street map': street }, null, { collapsed: false, position: 'topright' }).addTo(map);
+        map.on('baselayerchange', e => {
+            try { localStorage.setItem(MAP_LAYER_KEY, e.layer === street ? 'street' : 'satellite'); } catch (err) {}
+        });
+        if (area) L.rectangle(area, { color: '#facc15', weight: 2, dashArray: '6 6', fill: false, interactive: false }).addTo(map);
         layer = L.layerGroup().addTo(map);
-        map.on('click', e => addPoint(e.latlng));
+        map.on('click', e => {
+            if (area && !area.contains(e.latlng)) { showToast('Outside the Kandy town map area', 'error'); return; }
+            addPoint(e.latlng);
+        });
         draw();
         fitToRoute();
         return true;

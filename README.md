@@ -16,7 +16,7 @@ Offline-first PWA for the pedestrian O–D and intercept survey (Section 5.1.2):
    7. Access mode used to enter the study area
    8. Egress mode used to leave the study area
    9. Boarding / alighting / parking / drop-off location (+ optional name)
-   10. **Route used: draw on the map** – tap where the walk started, each turn, then the end. Each part follows the footpaths/streets (OpenStreetMap walking routes); if there is no signal it is drawn straight. *Undo point*, *Clear* and *Full screen* buttons. Needs internet for the map tiles.
+   10. **Route used: draw on the map** – tap where the walk started, each turn, then the end. Each part follows the footpaths/streets (OpenStreetMap walking routes); if there is no signal it is drawn straight. *Undo point*, *Clear* and *Full screen* buttons. Opens on the **satellite** photo with road names (switch to *Street map* in the corner; the choice is remembered). Only **Kandy town** can be viewed and tapped (dashed yellow box) – change `mapBounds` in [`config.js`](config.js) to move or enlarge it. Needs internet for the map.
    11. Route used: landmarks passed – add as many as needed, in order (numbered; tap × to remove)
    12. Route used: exit point – study-area list, points used before at this location, nearby places
    13. Approximate walking time (Less than 5 / 5–10 / 10–15 / Over 15 min)

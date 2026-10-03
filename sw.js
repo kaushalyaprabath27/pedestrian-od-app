@@ -1,6 +1,6 @@
 // Offline shell for the Pedestrian O-D Survey PWA.
 // Bump CACHE_NAME whenever app files change so devices pick up the update.
-const CACHE_NAME = 'pedestrian-od-v6';
+const CACHE_NAME = 'pedestrian-od-v7';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -35,7 +35,8 @@ self.addEventListener('fetch', event => {
     // Never cache data sync or live place searches.
     // Map tiles and street routing come straight from their servers.
     if (req.method !== 'GET' || url.includes('script.google.com') || url.includes('photon.komoot.io') || url.includes('googleapis.com/v1/places')
-        || url.includes('tile.openstreetmap.org') || url.includes('routing.openstreetmap.de')) return;
+        || url.includes('tile.openstreetmap.org') || url.includes('routing.openstreetmap.de')
+        || url.includes('arcgisonline.com')) return;
 
     // Network first so updates arrive when online; cache when offline.
     event.respondWith(
