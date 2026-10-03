@@ -5,30 +5,33 @@ Offline-first PWA for the pedestrian O–D and intercept survey (Section 5.1.2):
 ## How a surveyor uses it
 
 1. **Setup:** Surveyor, **Location ID**, **Location Name** (suggests the study-area list as you type), optional **GPS**, then **Start Survey**.
-2. **Recorded automatically:** Respondent No. (1, 2, 3… per location and day on this phone), Date and Time (taken when the form is saved).
+2. **Recorded automatically:** Date and Time (taken when the form is saved).
 3. **Questions** (most are a single tap):
    1. Gender (Male / Female)
    2. Age category (Under 18 / 18–40 / 41–60 / Over 60)
-   3. Respondent / trip category (incl. School child, University student, Other student, Patient)
-   4. Origin – suggests the 14 study-area locations (all of them when the box is empty), then map places; the typed text is always the first suggestion
-   5. Principal destination – same
-   6. Did you use an underpass on this journey? Yes / No – **No** opens **6a Why not?** (Don't know about underpasses / Difficult to use / Other; tick all that apply)
+   3. Origin – suggests the 14 study-area locations (all of them when the box is empty), then map places; the typed text is always the first suggestion
+   4. Principal destination – same
+   5. Respondent / trip category (incl. School child, University student, Other student, Patient, Pilgrim)
+   6. Did you use an underpass on this journey? Yes / No – **No** opens **Why not?** (Don't know about underpasses / Difficult to use / Other; tick all that apply)
    7. Access mode used to enter the study area
    8. Egress mode used to leave the study area
    9. Boarding / alighting / parking / drop-off location (+ optional name)
-   10. Route used: entry point – study-area list, points used before at this location, nearby places
-   11. Route used: exit point – same
-   12. Approximate walking time (Under 5 / 5–10 / 10–15 / Over 15 min)
-   13. Existing barriers experienced – select all that apply, *None*, *Other* and details
-   14. Priority improvements requested – select all that apply (incl. Signalized crossing, Elevated crossing), *None*, *Other* and details
-4. **Save respondent.** The form clears and the next respondent number appears. A half-filled form survives closing the app.
-5. **Undo** deletes the last saved respondent (until it has been sent) and its number is reused. **End** finishes the survey.
+   10. **Route used: draw on the map** – tap where the walk started, each turn, then the end. Each part follows the footpaths/streets (OpenStreetMap walking routes); if there is no signal it is drawn straight. *Undo point*, *Clear* and *Full screen* buttons. Needs internet for the map tiles.
+   11. Route used: landmarks passed – add as many as needed, in order (numbered; tap × to remove)
+   12. Route used: exit point – study-area list, points used before at this location, nearby places
+   13. Approximate walking time (Less than 5 / 5–10 / 10–15 / Over 15 min)
+   14. Existing barriers experienced – select all that apply, *None*, *Other* and details
+   15. Priority improvements requested – select all that apply (incl. Signalized crossing, Elevated crossing), *None*, *Other* and details
+4. **Save respondent.** The form clears for the next respondent. A half-filled form (including the drawn route) survives closing the app.
+5. **Undo** deletes the last saved respondent (until it has been sent). **End** finishes the survey.
 
 The study-area location list is `presetLocations` in [`config.js`](config.js).
 
 ## Data (sheet tab `pedestrian-od`)
 
-Location ID, Location Name, Surveyor, Respondent No., Date, Time, GPS Lat/Lon, Gender, Age Category, Respondent / Trip Category, Origin + Lat/Lon, Principal Destination + Lat/Lon, Access Mode, Egress Mode, Boarding/Alighting/Parking/Drop-off Location, Stop / Stand / Car Park Name, Route Entry Point, Route Exit Point, Used Underpass, Why No Underpass, Walking Time, Existing Barriers, Barrier Details, Priority Improvements, Improvement Details, EventID.
+Location ID, Location Name, Surveyor, Date, Time, GPS Lat/Lon, Gender, Age Category, Origin + Lat/Lon, Principal Destination + Lat/Lon, Respondent / Trip Category, Used Underpass, Why No Underpass, Access Mode, Egress Mode, Boarding/Alighting/Parking/Drop-off Location, Stop / Stand / Car Park Name, Route Map Link, Route Length (m), Landmarks Passed, Route Exit Point, Walking Time, Existing Barriers, Barrier Details, Priority Improvements, Improvement Details, Route Points (lat,lon), Route Path (encoded polyline), EventID.
+
+**Route columns:** *Route Map Link* opens the walk in Google Maps (walking directions through up to 8 of the tapped points). *Route Points* are the tapped points in order. *Route Path* is the full street-following line as a Google encoded polyline – paste it into a polyline decoder or decode it in Python (`polyline.decode(...)`) / QGIS to map every route.
 
 "Other" answers are saved as `Other: <text>`; multiple answers are separated by `; `. The sheet menu **Pedestrian O-D → Build / refresh summary** counts every answer to each categorical question, overall and per Location ID.
 

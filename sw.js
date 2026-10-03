@@ -1,6 +1,6 @@
 // Offline shell for the Pedestrian O-D Survey PWA.
 // Bump CACHE_NAME whenever app files change so devices pick up the update.
-const CACHE_NAME = 'pedestrian-od-v5';
+const CACHE_NAME = 'pedestrian-od-v6';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -12,7 +12,9 @@ const ASSETS_TO_CACHE = [
     './icons/icon-512.png',
     './icons/favicon-32.png',
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap',
-    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
+    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
+    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'
 ];
 
 self.addEventListener('install', event => {
@@ -31,7 +33,9 @@ self.addEventListener('fetch', event => {
     const req = event.request;
     const url = req.url;
     // Never cache data sync or live place searches.
-    if (req.method !== 'GET' || url.includes('script.google.com') || url.includes('photon.komoot.io') || url.includes('googleapis.com/v1/places')) return;
+    // Map tiles and street routing come straight from their servers.
+    if (req.method !== 'GET' || url.includes('script.google.com') || url.includes('photon.komoot.io') || url.includes('googleapis.com/v1/places')
+        || url.includes('tile.openstreetmap.org') || url.includes('routing.openstreetmap.de')) return;
 
     // Network first so updates arrive when online; cache when offline.
     event.respondWith(

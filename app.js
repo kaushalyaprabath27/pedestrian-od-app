@@ -2,8 +2,8 @@
    Pedestrian Origin-Destination / Intercept Survey
    ---------------------------------------------------------------------
    One form per respondent. Location ID, location name and surveyor are set
-   once at setup; respondent number, date and time are recorded
-   automatically. Most answers are taps; places come with type-ahead
+   once at setup; date and time are recorded automatically. The route walked
+   is drawn on a map. Most answers are taps; places come with type-ahead
    suggestions (the typed text is always the first suggestion).
 
    Offline-first, like the other survey apps: each saved respondent goes to
@@ -21,8 +21,9 @@ const CONFIG = Object.assign({
 
 const PLACEHOLDER_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE';
 const SURVEY_TYPE = 'pedestrian-od';
-// v2: location name instead of street/round, egress mode, underpass questions.
-const SYNC_ACTION = 'submit_od_v2';
+// v3: route drawn on a map + landmarks instead of entry point; no respondent
+// number. (v2: location name, egress mode, underpass questions.)
+const SYNC_ACTION = 'submit_od_v3';
 const BATCH_SIZE = 50;
 const SYNC_INTERVAL_MS = 15000;
 
@@ -38,6 +39,8 @@ const THEME_KEY = 'pedod_theme';
 // The questionnaire. Edit option lists here; the form is built from this.
 //   place  - text with place suggestions (keeps coordinates when picked)
 //            presets: true offers the study-area list from config.js first
+//            multi: true collects several places (shown as removable chips)
+//   route  - map: tap points, the walking route is drawn along the streets
 //            nearby: true ranks places close to the site first
 //            recent: true also offers values used before at this location
 //   single - pick one        multi - pick any number
@@ -66,6 +69,8 @@ const MODES = [
 const FORM = [
     { id: 'gender', label: 'Gender', type: 'single', options: ['Male', 'Female'] },
     { id: 'age', label: 'Age category', type: 'single', options: ['Under 18', '18–40', '41–60', 'Over 60'] },
+    { id: 'origin', label: 'Origin', type: 'place', presets: true, hint: 'Where this trip started', placeholder: 'Start typing a location' },
+    { id: 'destination', label: 'Principal destination', type: 'place', presets: true, hint: 'Main place they are going to', placeholder: 'Start typing a location' },
     {
         id: 'category', label: 'Respondent / trip category', type: 'single', other: true, grid: true,
         options: [
@@ -82,8 +87,6 @@ const FORM = [
             ['Vendor / trader', 'fa-store']
         ]
     },
-    { id: 'origin', label: 'Origin', type: 'place', presets: true, hint: 'Where this trip started', placeholder: 'Start typing a location' },
-    { id: 'destination', label: 'Principal destination', type: 'place', presets: true, hint: 'Main place they are going to', placeholder: 'Start typing a location' },
     { id: 'usedUnderpass', label: 'Did you use an underpass on this journey?', type: 'single', yesno: true, options: ['Yes', 'No'] },
     // Follow-up shown only when the answer above is No.
     {
@@ -115,11 +118,15 @@ const FORM = [
             ['Not applicable (walked)', 'fa-person-walking']
         ]
     },
-    { id: 'entryPoint', label: 'Route used: entry point', type: 'place', presets: true, nearby: true, recent: true, hint: 'Where they entered the study area', placeholder: 'Junction, road or landmark' },
+    { id: 'route', label: 'Route used: draw on the map', type: 'route', hint: 'Tap the start, each turn, then the end' },
+    {
+        id: 'landmarks', label: 'Route used: landmarks passed', type: 'place', multi: true, presets: true, nearby: true, recent: true,
+        hint: 'Add each landmark in order', placeholder: 'Type a landmark, then pick it'
+    },
     { id: 'exitPoint', label: 'Route used: exit point', type: 'place', presets: true, nearby: true, recent: true, hint: 'Where they will leave it', placeholder: 'Junction, road or landmark' },
     {
         id: 'walkTime', label: 'Approximate walking time', type: 'single',
-        options: ['Under 5 min', '5–10 min', '10–15 min', 'Over 15 min']
+        options: ['Less than 5 min', '5–10 min', '10–15 min', 'Over 15 min']
     },
     {
         id: 'barriers', label: 'Existing barriers experienced', type: 'multi', other: true, grid: true, exclusive: 'None',
@@ -359,24 +366,14 @@ function startSurveyScreen() {
     updateAutoInfo();
     updateSyncStatus();
     showScreen('survey');
+    setTimeout(() => mapRefreshers.forEach(fn => fn()), 450);
 }
 
 // ---------------------------------------------------------------------
-// Automatic fields: respondent number, date, time
+// Automatic fields: date, time
 // ---------------------------------------------------------------------
-// Respondent numbers run 1, 2, 3... per location and day on this device.
-function nextRespondentNo() {
-    if (!session) return 1;
-    const today = formatDate(Date.now());
-    const used = readJSON(BACKUP_KEY, [])
-        .filter(r => r.locationId === session.locationId && r.date === today)
-        .map(r => Number(r.respondentNo) || 0);
-    return (used.length ? Math.max(...used) : 0) + 1;
-}
-
 function updateAutoInfo() {
     const now = Date.now();
-    $('auto-respondent').textContent = nextRespondentNo();
     $('auto-date').textContent = formatDate(now);
     $('auto-time').textContent = formatTime(now).slice(0, 5);
 }
@@ -400,6 +397,7 @@ function buildForm() {
         label.id = `lbl-${f.id}`;
         q.appendChild(label);
         if (f.type === 'place') buildPlaceField(q, f);
+        else if (f.type === 'route') buildRouteField(q, f);
         else buildChoiceField(q, f);
         formEl.appendChild(q);
     });
@@ -407,7 +405,9 @@ function buildForm() {
 
 function isAnswered(f) {
     const v = answers[f.id];
+    if (f.type === 'place' && f.multi) return Array.isArray(v) && v.length > 0;
     if (f.type === 'place') return !!(v && v.text && v.text.trim());
+    if (f.type === 'route') return !!(v && Array.isArray(v.points) && v.points.length >= 2);
     if (f.type === 'multi') return Array.isArray(v) && v.length > 0;
     return !!(v && String(v).trim());
 }
@@ -560,12 +560,41 @@ function buildPlaceField(q, f) {
     wrap.append(input, clear, list);
     const status = el('div', 'place-status');
     q.append(wrap, status);
+    // multi: chosen places become removable chips; the box is for adding the next one.
+    const chipsBox = f.multi ? el('div', 'place-chips') : null;
+    if (chipsBox) q.appendChild(chipsBox);
 
     let timer = null, controller = null, items = [], active = -1;
+
+    const renderChips = () => {
+        if (!chipsBox) return;
+        const arr = Array.isArray(answers[f.id]) ? answers[f.id] : [];
+        chipsBox.innerHTML = '';
+        arr.forEach((x, k) => {
+            const chip = el('span', 'place-chip', `<span>${k + 1}. ${escapeHtml(x.text)}</span>`);
+            const rm = el('button', '', '<i class="fa-solid fa-xmark"></i>');
+            rm.type = 'button';
+            rm.setAttribute('aria-label', `Remove ${x.text}`);
+            rm.addEventListener('click', () => {
+                answers[f.id] = arr.filter((_, n) => n !== k);
+                renderChips();
+                changed();
+                setStatus();
+            });
+            chip.appendChild(rm);
+            chipsBox.appendChild(chip);
+        });
+    };
 
     const hide = () => { list.classList.add('hidden'); input.setAttribute('aria-expanded', 'false'); active = -1; };
     const setStatus = () => {
         const v = answers[f.id];
+        if (f.multi) {
+            const n = Array.isArray(v) ? v.length : 0;
+            status.textContent = n ? `✓ ${n} added · type to add another` : '';
+            status.className = 'place-status' + (n ? ' ok' : '');
+            return;
+        }
         if (v && v.source === 'list' && v.confirmed) { status.textContent = '✓ Study-area location'; status.className = 'place-status ok'; }
         else if (v && v.lat != null) { status.textContent = '✓ Place selected from map suggestions'; status.className = 'place-status ok'; }
         else if (v && v.text && v.confirmed) { status.textContent = '✓ Saved as typed'; status.className = 'place-status ok'; }
@@ -612,6 +641,20 @@ function buildPlaceField(q, f) {
         // Cancel any search still pending from typing, so the list can't reopen.
         clearTimeout(timer);
         if (controller) controller.abort();
+        if (f.multi) {
+            const arr = Array.isArray(answers[f.id]) ? answers[f.id].slice() : [];
+            if (!arr.some(x => x.text.toLowerCase() === r.label.toLowerCase())) {
+                arr.push({ text: r.label, lat: r.lat ?? null, lon: r.lon ?? null, source: r.source });
+            }
+            answers[f.id] = arr;
+            input.value = '';
+            hide();
+            clear.classList.add('hidden');
+            renderChips();
+            changed();
+            setStatus();
+            return;
+        }
         input.value = r.label;
         answers[f.id] = { text: r.label, lat: r.lat ?? null, lon: r.lon ?? null, source: r.source, placeId: r.placeId || '', confirmed: true };
         hide();
@@ -655,10 +698,12 @@ function buildPlaceField(q, f) {
     };
 
     input.addEventListener('input', () => {
-        answers[f.id] = { text: input.value, lat: null, lon: null, source: 'typed', placeId: '' };
+        if (!f.multi) {
+            answers[f.id] = { text: input.value, lat: null, lon: null, source: 'typed', placeId: '' };
+            changed();
+            setStatus();
+        }
         clear.classList.toggle('hidden', !input.value);
-        changed();
-        setStatus();
         clearTimeout(timer);
         // Refresh straight away so no stale suggestion from the previous text can be picked.
         const t = input.value.trim();
@@ -669,7 +714,7 @@ function buildPlaceField(q, f) {
         // Bring the question to the top so the list has room above the keyboard.
         setTimeout(() => q.scrollIntoView({ block: 'start', behavior: 'smooth' }), 150);
         const v = answers[f.id];
-        if (!(v && (v.lat != null || v.confirmed))) search(input.value);
+        if (f.multi || !(v && (v.lat != null || v.confirmed))) search(input.value);
     });
     input.addEventListener('blur', () => setTimeout(hide, 120));
     input.addEventListener('keydown', e => {
@@ -686,7 +731,7 @@ function buildPlaceField(q, f) {
     });
     clear.addEventListener('click', () => {
         input.value = '';
-        answers[f.id] = null;
+        if (!f.multi) answers[f.id] = null;
         clear.classList.add('hidden');
         hide();
         changed();
@@ -696,10 +741,233 @@ function buildPlaceField(q, f) {
 
     renderers[f.id] = () => {
         const v = answers[f.id];
-        input.value = (v && v.text) || '';
+        input.value = f.multi ? '' : ((v && v.text) || '');
         clear.classList.toggle('hidden', !input.value);
+        renderChips();
         setStatus();
     };
+}
+
+// ----- Route drawn on a map (Leaflet + OpenStreetMap) -----
+// The surveyor taps the start, each turn and the end. Each pair of taps is
+// joined by the walking route along the streets (OSM foot routing); if that
+// service can't be reached the pair is joined by a straight line instead.
+const ROUTE_SERVICE = 'https://routing.openstreetmap.de/routed-foot/route/v1/foot/';
+const mapRefreshers = [];
+
+function samePoint(a, b) { return a && b && a[0] === b[0] && a[1] === b[1]; }
+
+function haversineM(a, b) {
+    const R = 6371000, rad = Math.PI / 180;
+    const dLat = (b[0] - a[0]) * rad, dLon = (b[1] - a[1]) * rad;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function routePath(r) {
+    const out = [];
+    (r && r.segments || []).forEach(seg => seg.forEach(p => { if (!samePoint(out[out.length - 1], p)) out.push(p); }));
+    return out;
+}
+
+function routeLength(r) {
+    const path = routePath(r);
+    let m = 0;
+    for (let i = 1; i < path.length; i++) m += haversineM(path[i - 1], path[i]);
+    return m;
+}
+
+// Google's encoded-polyline format (precision 5): compact, and readable by
+// most GIS tools and online decoders.
+function encodePolyline(points) {
+    let out = '', pLat = 0, pLon = 0;
+    const enc = v => {
+        v = v < 0 ? ~(v << 1) : (v << 1);
+        let s = '';
+        while (v >= 0x20) { s += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+        return s + String.fromCharCode(v + 63);
+    };
+    points.forEach(([lat, lon]) => {
+        const iLat = Math.round(lat * 1e5), iLon = Math.round(lon * 1e5);
+        out += enc(iLat - pLat) + enc(iLon - pLon);
+        pLat = iLat; pLon = iLon;
+    });
+    return out;
+}
+
+// A Google Maps walking-directions link through the tapped points (it allows
+// at most 8 stops between start and end, so longer routes are thinned evenly).
+function routeMapLink(points) {
+    const fmt = p => `${p[0]},${p[1]}`;
+    let mid = points.slice(1, -1);
+    if (mid.length > 8) mid = Array.from({ length: 8 }, (_, k) => mid[Math.round(k * (mid.length - 1) / 7)]);
+    let url = `https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=${fmt(points[0])}&destination=${fmt(points[points.length - 1])}`;
+    if (mid.length) url += `&waypoints=${encodeURIComponent(mid.map(fmt).join('|'))}`;
+    return url;
+}
+
+function routeRecord(r) {
+    if (!r || !Array.isArray(r.points) || r.points.length < 2) return { routeLengthM: '', routeMapLink: '', routePoints: '', routePath: '' };
+    return {
+        routeLengthM: Math.round(routeLength(r)),
+        routeMapLink: routeMapLink(r.points),
+        routePoints: r.points.map(p => p.join(',')).join('; '),
+        routePath: encodePolyline(routePath(r))
+    };
+}
+
+function buildRouteField(q, f) {
+    const box = el('div', 'route-box');
+    const mapEl = el('div', 'route-map');
+    const tools = el('div', 'route-tools');
+    const mkBtn = (icon, text) => {
+        const b = el('button', 'mini-btn', `<i class="fa-solid ${icon}"></i> <span>${text}</span>`);
+        b.type = 'button';
+        return b;
+    };
+    const btnUndo = mkBtn('fa-rotate-left', 'Undo point');
+    const btnClear = mkBtn('fa-trash-can', 'Clear');
+    const btnFull = mkBtn('fa-expand', 'Full screen');
+    tools.append(btnUndo, btnClear, btnFull);
+    const info = el('div', 'route-info');
+    box.append(mapEl, tools, info);
+    q.appendChild(box);
+
+    let map = null, layer = null, pending = 0;
+
+    const current = () => {
+        const r = answers[f.id];
+        return (r && Array.isArray(r.points)) ? r : { points: [], segments: [], routed: [] };
+    };
+
+    const updateInfo = () => {
+        const r = current();
+        const n = r.points.length;
+        btnUndo.disabled = n === 0;
+        btnClear.disabled = n === 0;
+        if (!map && typeof L === 'undefined') {
+            info.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> The map needs internet. Add the landmarks below instead.';
+            info.className = 'route-info warn';
+            return;
+        }
+        if (n === 0) { info.textContent = 'Tap the map where the walk started.'; info.className = 'route-info'; return; }
+        if (n === 1) { info.textContent = 'Now tap each turn, then where the walk ends.'; info.className = 'route-info'; return; }
+        const m = routeLength(r);
+        const straight = r.routed.some(x => !x);
+        info.innerHTML = `\u2713 ${n} points \u00b7 ${m >= 1000 ? (m / 1000).toFixed(2) + ' km' : Math.round(m) + ' m'}` +
+            (pending ? ' \u00b7 following streets\u2026' : straight && !pending ? ' \u00b7 some parts drawn as straight lines' : '');
+        info.className = 'route-info ok';
+    };
+
+    const draw = () => {
+        if (map) {
+            layer.clearLayers();
+            const r = current();
+            const path = routePath(r);
+            if (path.length > 1) L.polyline(path, { color: '#2563eb', weight: 5, opacity: 0.85 }).addTo(layer);
+            r.points.forEach((p, k) => {
+                const cls = k === 0 ? 'start' : (k === r.points.length - 1 && k > 0 ? 'end' : '');
+                L.marker(p, {
+                    icon: L.divIcon({ className: 'route-pt ' + cls, html: `<span>${k + 1}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] }),
+                    keyboard: false
+                }).addTo(layer);
+            });
+        }
+        updateInfo();
+    };
+
+    const fetchSegment = (i, a, b) => {
+        if (!navigator.onLine) return;
+        pending++;
+        fetch(`${ROUTE_SERVICE}${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson`)
+            .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+            .then(d => {
+                const r = answers[f.id];
+                // Ignore the answer if the route changed meanwhile (undo, clear, saved).
+                if (!r || !samePoint(r.points[i], a) || !samePoint(r.points[i + 1], b)) return;
+                const coords = d && d.routes && d.routes[0] && d.routes[0].geometry && d.routes[0].geometry.coordinates;
+                if (!coords || coords.length < 2) return;
+                r.segments[i] = [a].concat(coords.map(c => [+c[1].toFixed(6), +c[0].toFixed(6)])).concat([b]);
+                r.routed[i] = true;
+                saveDraft();
+            })
+            .catch(() => {})
+            .finally(() => { pending--; draw(); });
+    };
+
+    const addPoint = latlng => {
+        const r = current();
+        const p = [+latlng.lat.toFixed(6), +latlng.lng.toFixed(6)];
+        r.points.push(p);
+        if (r.points.length >= 2) {
+            const a = r.points[r.points.length - 2];
+            r.segments.push([a, p]);     // straight until the street route arrives
+            r.routed.push(false);
+            fetchSegment(r.points.length - 2, a, p);
+        }
+        answers[f.id] = r;
+        changed();
+        draw();
+    };
+
+    const ensureMap = () => {
+        if (map) return true;
+        if (typeof L === 'undefined') { updateInfo(); return false; }
+        const c = sessionLatLon() || { lat: 7.2906, lon: 80.6337 };
+        map = L.map(mapEl, { zoomControl: true, attributionControl: true }).setView([c.lat, c.lon], 16);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        layer = L.layerGroup().addTo(map);
+        map.on('click', e => addPoint(e.latlng));
+        draw();
+        fitToRoute();
+        return true;
+    };
+
+    const fitToRoute = () => {
+        const r = current();
+        if (map && r.points.length >= 2) map.fitBounds(L.latLngBounds(routePath(r)), { padding: [30, 30], maxZoom: 17 });
+    };
+
+    // Create the map when the question first comes into view (it needs a real size).
+    if ('IntersectionObserver' in window) {
+        const io = new IntersectionObserver(entries => {
+            if (entries.some(e => e.isIntersecting) && ensureMap()) { map.invalidateSize(); }
+        });
+        io.observe(mapEl);
+    } else {
+        setTimeout(ensureMap, 600);
+    }
+    mapRefreshers.push(() => { if (map) map.invalidateSize(); });
+
+    btnUndo.addEventListener('click', () => {
+        const r = current();
+        if (!r.points.length) return;
+        r.points.pop();
+        if (r.segments.length >= r.points.length && r.segments.length) { r.segments.pop(); r.routed.pop(); }
+        answers[f.id] = r.points.length ? r : null;
+        changed();
+        draw();
+    });
+    btnClear.addEventListener('click', async () => {
+        if (!current().points.length) return;
+        const ok = await openModal({ title: 'Clear the route?', html: 'All points on the map will be removed.', okLabel: 'Clear', danger: true });
+        if (!ok) return;
+        answers[f.id] = null;
+        changed();
+        draw();
+    });
+    btnFull.addEventListener('click', () => {
+        const on = !q.classList.contains('route-full');
+        q.classList.toggle('route-full', on);
+        document.body.classList.toggle('route-full-open', on);
+        btnFull.innerHTML = on ? '<i class="fa-solid fa-compress"></i> <span>Done</span>' : '<i class="fa-solid fa-expand"></i> <span>Full screen</span>';
+        setTimeout(() => { if (map) { map.invalidateSize(); fitToRoute(); } }, 150);
+    });
+
+    renderers[f.id] = () => { draw(); fitToRoute(); };
 }
 
 // ---------------------------------------------------------------------
@@ -797,7 +1065,7 @@ function notesValue(id) { return (answers[id + 'Notes'] || '').trim(); }
 function buildRecord() {
     const now = Date.now();
     const origin = placeParts('origin'), dest = placeParts('destination');
-    const entry = placeParts('entryPoint'), exit = placeParts('exitPoint');
+    const exit = placeParts('exitPoint');
     const gps = session.gps || {};
     return {
         action: 'submit',
@@ -808,7 +1076,6 @@ function buildRecord() {
         locationId: session.locationId,
         locationName: session.locationName || '',
         gpsLat: gps.lat ?? '', gpsLon: gps.lon ?? '',
-        respondentNo: nextRespondentNo(),
         date: formatDate(now),
         time: formatTime(now),
         category: singleValue('category'),
@@ -820,7 +1087,9 @@ function buildRecord() {
         egressMode: singleValue('egressMode'),
         accessPoint: singleValue('accessPoint'),
         accessPointName: notesValue('accessPoint'),
-        entryPoint: entry.text, exitPoint: exit.text,
+        ...routeRecord(answers.route),
+        landmarks: (Array.isArray(answers.landmarks) ? answers.landmarks : []).map(x => x.text).join('; '),
+        exitPoint: exit.text,
         usedUnderpass: singleValue('usedUnderpass'),
         underpassReason: answers.usedUnderpass === 'No' ? multiValue('underpassReason') : '',
         walkTime: singleValue('walkTime'),
@@ -863,12 +1132,16 @@ $('btn-save').addEventListener('click', async () => {
     const history = readJSON(HISTORY_KEY, []);
     history.push(record.eventId);
     writeJSON(HISTORY_KEY, history.slice(-50));
-    FORM.forEach(f => { if (f.recent) rememberRecent(f, answers[f.id]); });
+    FORM.forEach(f => {
+        if (!f.recent) return;
+        const v = answers[f.id];
+        (Array.isArray(v) ? v : [v]).forEach(x => rememberRecent(f, x));
+    });
 
     resetForm();
     updateCount();
     updateSyncStatus();
-    showToast(`Respondent ${record.respondentNo} saved`);
+    showToast('Respondent saved');
     syncQueue();
 });
 
@@ -891,8 +1164,8 @@ $('btn-undo').addEventListener('click', async () => {
         return;
     }
     const ok = await openModal({
-        title: `Delete respondent ${record.respondentNo}?`,
-        html: `Saved at ${escapeHtml(record.time)}. Respondent ${record.respondentNo} will be removed and its number reused for the next form.`,
+        title: 'Delete the last saved respondent?',
+        html: `Saved at ${escapeHtml(record.time)}${record.category ? ' · ' + escapeHtml(record.category) : ''}.`,
         okLabel: 'Delete',
         danger: true
     });
@@ -904,7 +1177,7 @@ $('btn-undo').addEventListener('click', async () => {
     updateCount();
     updateAutoInfo();
     updateSyncStatus();
-    showToast(`Respondent ${record.respondentNo} deleted`);
+    showToast('Last respondent deleted');
 });
 
 function sessionRecords() {

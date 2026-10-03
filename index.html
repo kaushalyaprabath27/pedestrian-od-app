@@ -6,6 +6,7 @@
     <title>Pedestrian O-D Survey</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
@@ -80,7 +81,6 @@
                     <!-- Filled in automatically -->
                     <section class="q auto-info" aria-label="Recorded automatically">
                         <div class="auto-grid">
-                            <div><span class="auto-label">Respondent No.</span><b id="auto-respondent">1</b></div>
                             <div><span class="auto-label">Date</span><b id="auto-date">-</b></div>
                             <div><span class="auto-label">Time</span><b id="auto-time">-</b></div>
                         </div>
@@ -119,6 +119,7 @@
             });
         }
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <script src="config.js"></script>
     <script src="app.js"></script>
 </body>
