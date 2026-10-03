@@ -2,7 +2,7 @@
 window.PEDOD_CONFIG = {
     // Google Apps Script Web App URL (Deploy > Manage deployments, ends in /exec).
     // Until this is set, responses are kept safely on the device and are NOT sent.
-    appsScriptUrl: 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE',
+    appsScriptUrl: 'https://script.google.com/macros/s/AKfycbxmUCrQPYtZh12M3hSR46uyA-pZBsJidrMvMOFCE7Dqw1572HTgBtHcSxNYq7L0T_Sz6A/exec',
 
     // Optional. Leave empty to use free OpenStreetMap place suggestions.
     googlePlacesApiKey: '',
