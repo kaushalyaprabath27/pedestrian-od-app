@@ -64,7 +64,7 @@ const MODES = [
 ];
 
 const FORM = [
-    { id: 'gender', label: 'Gender', type: 'single', options: ['Male', 'Female', 'Prefer not to say'] },
+    { id: 'gender', label: 'Gender', type: 'single', options: ['Male', 'Female'] },
     { id: 'age', label: 'Age category', type: 'single', options: ['Under 18', '18–40', '41–60', 'Over 60'] },
     {
         id: 'category', label: 'Respondent / trip category', type: 'single', other: true, grid: true,

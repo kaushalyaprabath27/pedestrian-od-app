@@ -7,7 +7,7 @@ Offline-first PWA for the pedestrian O–D and intercept survey (Section 5.1.2):
 1. **Setup:** Surveyor, **Location ID**, **Location Name** (suggests the study-area list as you type), optional **GPS**, then **Start Survey**.
 2. **Recorded automatically:** Respondent No. (1, 2, 3… per location and day on this phone), Date and Time (taken when the form is saved).
 3. **Questions** (most are a single tap):
-   1. Gender
+   1. Gender (Male / Female)
    2. Age category (Under 18 / 18–40 / 41–60 / Over 60)
    3. Respondent / trip category (incl. School child, University student, Other student, Patient)
    4. Origin – suggests the 14 study-area locations (all of them when the box is empty), then map places; the typed text is always the first suggestion
