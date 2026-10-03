@@ -14,5 +14,24 @@ window.PEDOD_CONFIG = {
     // Survey area. Suggestions near here come first; the setup GPS is used
     // instead when it has been captured.
     surveyAreaName: 'Kandy',
+
+    // Study-area locations offered first as you type Location Name, Origin,
+    // Principal destination and Route entry/exit (tap an empty box to see all).
+    presetLocations: [
+        'Bogambara TT',
+        'SWRD Bandaranayake Mw TT',
+        'Clock Tower TT',
+        'Torrington (Penideniya) TT',
+        'Torrington (Market) TT',
+        'Prison Front TT',
+        'Front of Swarnamahal TT',
+        'Kachcheriya (DS) TT',
+        'Infront of Maligawa',
+        'Kandy DS office',
+        'Kandy Municipal Council',
+        'Kandy Hospital (Hanthana Entrance)',
+        'Kandy Hospital (WGM Entrance)',
+        'Municipal Central Market'
+    ],
     surveyAreaCenter: { lat: 7.2906, lon: 80.6337 }
 };

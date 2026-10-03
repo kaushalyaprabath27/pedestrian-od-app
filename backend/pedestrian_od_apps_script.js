@@ -27,8 +27,7 @@ const SUMMARY_SHEET_NAME = "Summary";
 // [sheet header, record field, type]
 const COLUMNS = [
   ["Location ID", "locationId", "text"],
-  ["Street", "street", "text"],
-  ["Survey Round", "surveyRound", "text"],
+  ["Location Name", "locationName", "text"],
   ["Surveyor", "name", "text"],
   ["Respondent No.", "respondentNo", "num"],
   ["Date", "date", "text"],
@@ -45,11 +44,14 @@ const COLUMNS = [
   ["Destination Lat", "destinationLat", "num"],
   ["Destination Lon", "destinationLon", "num"],
   ["Access Mode", "accessMode", "text"],
+  ["Egress Mode", "egressMode", "text"],
   ["Boarding/Alighting/Parking/Drop-off Location", "accessPoint", "text"],
   ["Stop / Stand / Car Park Name", "accessPointName", "text"],
   ["Route Entry Point", "entryPoint", "text"],
   ["Route Exit Point", "exitPoint", "text"],
-  ["Walking Distance / Time", "walkDistance", "text"],
+  ["Used Underpass", "usedUnderpass", "text"],
+  ["Why No Underpass", "underpassReason", "text"],
+  ["Walking Time", "walkTime", "text"],
   ["Existing Barriers", "barriers", "text"],
   ["Barrier Details", "barriersNotes", "long"],
   ["Priority Improvements", "improvements", "text"],
@@ -61,11 +63,11 @@ const EVENT_ID_COL = HEADERS.indexOf("EventID") + 1; // 1-based
 
 // Categorical columns counted on the Summary tab (per Location ID).
 const SUMMARY_FIELDS = [
-  "Respondent / Trip Category", "Age Category", "Gender", "Access Mode",
-  "Boarding/Alighting/Parking/Drop-off Location", "Walking Distance / Time",
-  "Existing Barriers", "Priority Improvements"
+  "Gender", "Age Category", "Respondent / Trip Category", "Access Mode", "Egress Mode",
+  "Boarding/Alighting/Parking/Drop-off Location", "Used Underpass", "Why No Underpass",
+  "Walking Time", "Existing Barriers", "Priority Improvements"
 ];
-const MULTI_FIELDS = ["Existing Barriers", "Priority Improvements"]; // "; "-separated
+const MULTI_FIELDS = ["Why No Underpass", "Existing Barriers", "Priority Improvements"]; // "; "-separated
 
 const MAX_BATCH_SIZE = 200;
 const GLOBAL_RATE_LIMIT_PER_MIN = 300;
@@ -90,7 +92,8 @@ function handleRequest(e) {
     for (const key in params) data[key] = params[key];
 
     const action = data.action;
-    if (action === "submit_od_v1") return handleSubmitBatch(data);
+    // v2 = current app. v1 (first build) is still accepted; its extra fields are ignored.
+    if (action === "submit_od_v2" || action === "submit_od_v1") return handleSubmitBatch(data);
     if (!action) return responseJson({ status: "success", message: "Pedestrian O-D survey backend is running." });
     return responseJson({ status: "error", message: "Invalid action" });
   } catch (error) {

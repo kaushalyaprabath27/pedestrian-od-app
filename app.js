@@ -1,8 +1,8 @@
 /* =====================================================================
    Pedestrian Origin-Destination / Intercept Survey
    ---------------------------------------------------------------------
-   One form per respondent. Location ID, street, survey round and surveyor
-   are set once at setup; respondent number, date and time are recorded
+   One form per respondent. Location ID, location name and surveyor are set
+   once at setup; respondent number, date and time are recorded
    automatically. Most answers are taps; places come with type-ahead
    suggestions (the typed text is always the first suggestion).
 
@@ -15,18 +15,20 @@ const CONFIG = Object.assign({
     appsScriptUrl: '',
     googlePlacesApiKey: '',
     placeSearchBbox: [79.4, 5.8, 82.0, 10.0],
-    placeSearchCountry: 'lk'
+    placeSearchCountry: 'lk',
+    presetLocations: []
 }, window.PEDOD_CONFIG || {});
 
 const PLACEHOLDER_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE';
 const SURVEY_TYPE = 'pedestrian-od';
-const SYNC_ACTION = 'submit_od_v1';
+// v2: location name instead of street/round, egress mode, underpass questions.
+const SYNC_ACTION = 'submit_od_v2';
 const BATCH_SIZE = 50;
 const SYNC_INTERVAL_MS = 15000;
 
 const QUEUE_KEY = 'pedod_queue';      // responses waiting to sync
 const BACKUP_KEY = 'pedod_backup';    // every response saved on this device
-const SESSION_KEY = 'pedod_session';  // surveyor / location / street / round
+const SESSION_KEY = 'pedod_session';  // surveyor / location ID / location name
 const DRAFT_KEY = 'pedod_draft';      // the form currently being filled in
 const HISTORY_KEY = 'pedod_history';  // undo stack (eventIds)
 const RECENT_KEY = 'pedod_recent';    // entry/exit points used before, per location
@@ -35,23 +37,44 @@ const THEME_KEY = 'pedod_theme';
 // ---------------------------------------------------------------------
 // The questionnaire. Edit option lists here; the form is built from this.
 //   place  - text with place suggestions (keeps coordinates when picked)
+//            presets: true offers the study-area list from config.js first
 //            nearby: true ranks places close to the site first
 //            recent: true also offers values used before at this location
 //   single - pick one        multi - pick any number
 //   other: true adds "Other" with a text box
 //   notes: 'placeholder' adds a free-text box under the options
 //   exclusive: an option that clears the others when picked (e.g. 'None')
+//   showIf: answers => boolean  shows the question only when true (numbered
+//   as a sub-question, e.g. 11a, and not counted while hidden)
 // An option can carry an icon: a Font Awesome name or inline SVG.
 // ---------------------------------------------------------------------
 const TUKTUK_SVG = '<svg class="svg-icon" viewBox="1.8 1.4 28.4 23" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M2.5 13V6.2Q2.5 2 7 2H24.2Q26.4 2 26.7 3.8L27.9 12.4H26.1L25.1 4.3H7.6Q5.3 4.3 5.3 6.6V13Z"/><path d="M3.5 12.6H27.4Q29.7 12.6 29.7 15Q29.7 16.4 28.6 17.6L27.8 18.6H10.77A3.6 3.6 0 0 0 5.23 18.6H4.6Q2.4 18.6 2.4 16.2V13.7Q2.4 12.6 3.5 12.6ZM27.5 14.6a0.85 0.85 0 1 0 1.7 0a0.85 0.85 0 1 0 -1.7 0Z"/><path d="M22.6 12.6L24.6 8.4L25.5 8.8L23.8 12.6Z"/><path d="M5 20.9a3 3 0 1 0 6 0a3 3 0 1 0 -6 0ZM6.9 20.9a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0ZM24 21.4a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0ZM25.6 21.4a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0 -1.8 0Z"/><path d="M26.05 18.4H26.95V20.5H26.05Z"/></svg>';
 
+// Travel modes, shared by the access and egress questions.
+const MODES = [
+    ['Walked all the way', 'fa-person-walking'],
+    ['Bus', 'fa-bus'],
+    ['Train', 'fa-train'],
+    ['Three-wheeler', TUKTUK_SVG],
+    ['Car / Jeep', 'fa-car-side'],
+    ['Motorcycle', 'fa-motorcycle'],
+    ['Bicycle', 'fa-bicycle'],
+    ['Taxi / ride-hailing', 'fa-taxi'],
+    ['School / office van', 'fa-van-shuttle']
+];
+
 const FORM = [
+    { id: 'gender', label: 'Gender', type: 'single', options: ['Male', 'Female', 'Prefer not to say'] },
+    { id: 'age', label: 'Age category', type: 'single', options: ['Under 18', '18–40', '41–60', 'Over 60'] },
     {
         id: 'category', label: 'Respondent / trip category', type: 'single', other: true, grid: true,
         options: [
             ['Resident', 'fa-house'],
             ['Worker / employee', 'fa-briefcase'],
-            ['Student', 'fa-graduation-cap'],
+            ['School child', 'fa-child'],
+            ['University student', 'fa-graduation-cap'],
+            ['Other student', 'fa-book'],
+            ['Patient', 'fa-hospital-user'],
             ['Shopper / customer', 'fa-bag-shopping'],
             ['Tourist / visitor', 'fa-camera'],
             ['Pilgrim', 'fa-place-of-worship'],
@@ -59,23 +82,15 @@ const FORM = [
             ['Vendor / trader', 'fa-store']
         ]
     },
-    { id: 'age', label: 'Age category', type: 'single', options: ['Under 18', '18–25', '26–40', '41–60', 'Over 60'] },
-    { id: 'gender', label: 'Gender', type: 'single', options: ['Male', 'Female', 'Prefer not to say'] },
-    { id: 'origin', label: 'Origin', type: 'place', hint: 'Where this trip started', placeholder: 'Start typing a town, road or place' },
-    { id: 'destination', label: 'Principal destination', type: 'place', hint: 'Main place they are going to', placeholder: 'Start typing a shop, building, road or place' },
+    { id: 'origin', label: 'Origin', type: 'place', presets: true, hint: 'Where this trip started', placeholder: 'Start typing a location' },
+    { id: 'destination', label: 'Principal destination', type: 'place', presets: true, hint: 'Main place they are going to', placeholder: 'Start typing a location' },
     {
         id: 'accessMode', label: 'Access mode used to enter study area', type: 'single', other: true, grid: true,
-        options: [
-            ['Walked all the way', 'fa-person-walking'],
-            ['Bus', 'fa-bus'],
-            ['Train', 'fa-train'],
-            ['Three-wheeler', TUKTUK_SVG],
-            ['Car / Jeep', 'fa-car-side'],
-            ['Motorcycle', 'fa-motorcycle'],
-            ['Bicycle', 'fa-bicycle'],
-            ['Taxi / ride-hailing', 'fa-taxi'],
-            ['School / office van', 'fa-van-shuttle']
-        ]
+        options: MODES
+    },
+    {
+        id: 'egressMode', label: 'Egress mode used to leave study area', type: 'single', other: true, grid: true,
+        options: MODES
     },
     {
         id: 'accessPoint', label: 'Boarding / alighting / parking / drop-off location', type: 'single', other: true, grid: true,
@@ -90,11 +105,21 @@ const FORM = [
             ['Not applicable (walked)', 'fa-person-walking']
         ]
     },
-    { id: 'entryPoint', label: 'Route used: entry point', type: 'place', nearby: true, recent: true, hint: 'Where they entered the study area', placeholder: 'Junction, road or landmark' },
-    { id: 'exitPoint', label: 'Route used: exit point', type: 'place', nearby: true, recent: true, hint: 'Where they will leave it', placeholder: 'Junction, road or landmark' },
+    { id: 'entryPoint', label: 'Route used: entry point', type: 'place', presets: true, nearby: true, recent: true, hint: 'Where they entered the study area', placeholder: 'Junction, road or landmark' },
+    { id: 'exitPoint', label: 'Route used: exit point', type: 'place', presets: true, nearby: true, recent: true, hint: 'Where they will leave it', placeholder: 'Junction, road or landmark' },
+    { id: 'usedUnderpass', label: 'Did you use an underpass on this journey?', type: 'single', yesno: true, options: ['Yes', 'No'] },
+    // Follow-up shown only when the answer above is No.
     {
-        id: 'walkDistance', label: 'Approximate walking distance / time', type: 'single', grid: true,
-        options: ['Under 5 min (< 400 m)', '5–10 min (400–800 m)', '10–15 min (0.8–1.2 km)', '15–20 min (1.2–1.6 km)', 'Over 20 min (> 1.6 km)']
+        id: 'underpassReason', label: 'Why not?', type: 'multi', other: true, grid: true,
+        showIf: a => a.usedUnderpass === 'No', hint: 'Tick all that apply',
+        options: [
+            ['Don’t know about underpasses', 'fa-circle-question'],
+            ['Difficult to use', 'fa-stairs']
+        ]
+    },
+    {
+        id: 'walkTime', label: 'Approximate walking time', type: 'single',
+        options: ['Under 5 min', '5–10 min', '10–15 min', 'Over 15 min']
     },
     {
         id: 'barriers', label: 'Existing barriers experienced', type: 'multi', other: true, grid: true, exclusive: 'None',
@@ -108,7 +133,6 @@ const FORM = [
             ['No pedestrian crossing nearby', 'fa-person-walking-arrow-loop-left'],
             ['Long wait to cross', 'fa-hourglass-half'],
             ['Poor lighting at night', 'fa-lightbulb'],
-            ['Drainage / flooding', 'fa-water'],
             ['Steps, no ramps (accessibility)', 'fa-wheelchair'],
             ['No shade / shelter', 'fa-sun'],
             ['Crowding', 'fa-people-group'],
@@ -124,11 +148,11 @@ const FORM = [
             ['Repair footpath surface', 'fa-trowel-bricks'],
             ['Remove obstructions (parking, vendors)', 'fa-ban'],
             ['More pedestrian crossings', 'fa-person-walking'],
-            ['Pedestrian signals / more crossing time', 'fa-traffic-light'],
+            ['Signalized crossing', 'fa-traffic-light'],
+            ['Elevated crossing', 'fa-bridge'],
             ['Better street lighting', 'fa-lightbulb'],
             ['Shade / covered walkways', 'fa-umbrella'],
             ['Ramps / accessible design', 'fa-wheelchair'],
-            ['Better drainage', 'fa-water'],
             ['Slower traffic / traffic calming', 'fa-gauge-simple'],
             ['Seating / rest areas', 'fa-chair'],
             ['Signs / wayfinding', 'fa-signs-post'],
@@ -278,29 +302,18 @@ $('theme-toggle').addEventListener('click', () => {
 // ---------------------------------------------------------------------
 const inputName = $('surveyor-name');
 const inputLocId = $('location-id');
-const inputStreet = $('street-name');
-const roundBtns = document.querySelectorAll('#survey-round button');
+const inputLocName = $('location-name');
 const btnStart = $('btn-start');
-let setupRound = '';
 let setupGps = null;
 
 $('btn-next').addEventListener('click', () => showScreen('setup'));
 
-function renderRound() {
-    roundBtns.forEach(b => {
-        const on = b.dataset.value === setupRound;
-        b.classList.toggle('selected', on);
-        b.setAttribute('aria-checked', String(on));
-    });
-}
-roundBtns.forEach(b => b.addEventListener('click', () => { setupRound = b.dataset.value; renderRound(); checkSetupForm(); }));
-
 function checkSetupForm() {
-    const ok = inputName.value.trim() && inputLocId.value.trim() && inputStreet.value.trim() && setupRound;
+    const ok = inputName.value.trim() && inputLocId.value.trim() && inputLocName.value.trim();
     btnStart.disabled = !ok;
     btnStart.classList.toggle('btn-disabled', !ok);
 }
-[inputName, inputLocId, inputStreet].forEach(i => i.addEventListener('input', checkSetupForm));
+[inputName, inputLocId, inputLocName].forEach(i => i.addEventListener('input', checkSetupForm));
 
 function showGpsStatus(text, cls) {
     const s = $('gps-status');
@@ -328,8 +341,7 @@ btnStart.addEventListener('click', () => {
         active: true,
         name: inputName.value.trim(),
         locationId: inputLocId.value.trim(),
-        street: inputStreet.value.trim(),
-        round: setupRound,
+        locationName: inputLocName.value.trim(),
         gps: setupGps,
         startedAt: Date.now()
     };
@@ -340,8 +352,7 @@ btnStart.addEventListener('click', () => {
 
 function startSurveyScreen() {
     $('info-location').textContent = session.locationId;
-    $('info-street').textContent = session.street;
-    $('info-round').textContent = session.round;
+    $('info-location-name').textContent = session.locationName || '-';
     $('info-name').textContent = session.name;
     renderAllFromAnswers();
     updateCount();
@@ -353,12 +364,12 @@ function startSurveyScreen() {
 // ---------------------------------------------------------------------
 // Automatic fields: respondent number, date, time
 // ---------------------------------------------------------------------
-// Respondent numbers run 1, 2, 3... per location, round and day on this device.
+// Respondent numbers run 1, 2, 3... per location and day on this device.
 function nextRespondentNo() {
     if (!session) return 1;
     const today = formatDate(Date.now());
     const used = readJSON(BACKUP_KEY, [])
-        .filter(r => r.locationId === session.locationId && String(r.surveyRound) === String(session.round) && r.date === today)
+        .filter(r => r.locationId === session.locationId && r.date === today)
         .map(r => Number(r.respondentNo) || 0);
     return (used.length ? Math.max(...used) : 0) + 1;
 }
@@ -378,11 +389,13 @@ const renderers = {}; // id -> function that refreshes that question from `answe
 
 function buildForm() {
     formEl.innerHTML = '';
-    FORM.forEach((f, idx) => {
+    let num = 0;
+    FORM.forEach(f => {
         const q = el('section', 'q');
         q.dataset.q = f.id;
+        const qNum = f.showIf ? `${num}a` : String(++num);
         const label = el('div', 'q-label',
-            `<span class="q-num">${idx + 1}</span><span>${escapeHtml(f.label)}</span>` +
+            `<span class="q-num">${qNum}</span><span>${escapeHtml(f.label)}</span>` +
             (f.hint ? `<span class="q-hint">${escapeHtml(f.hint)}</span>` : ''));
         label.id = `lbl-${f.id}`;
         q.appendChild(label);
@@ -399,15 +412,19 @@ function isAnswered(f) {
     return !!(v && String(v).trim());
 }
 
+function isVisible(f) { return !f.showIf || !!f.showIf(answers); }
+function visibleQuestions() { return FORM.filter(isVisible); }
+
 function refreshProgress() {
     let n = 0;
     FORM.forEach(f => {
-        const ok = isAnswered(f);
+        const shown = isVisible(f);
+        const ok = shown && isAnswered(f);
         if (ok) n++;
         const q = formEl.querySelector(`[data-q="${f.id}"]`);
-        if (q) q.classList.toggle('answered', ok);
+        if (q) { q.classList.toggle('answered', ok); q.classList.toggle('hidden', !shown); }
     });
-    $('progress').textContent = `${n} of ${FORM.length} answered`;
+    $('progress').textContent = `${n} of ${visibleQuestions().length} answered`;
     return n;
 }
 
@@ -423,7 +440,7 @@ function changed() {
 
 // ----- Choice fields -----
 function buildChoiceField(q, f) {
-    const box = el('div', 'chips' + (f.type === 'multi' ? ' multi' : '') + (f.grid ? ' grid' : ''));
+    const box = el('div', 'chips' + (f.type === 'multi' ? ' multi' : '') + (f.grid ? ' grid' : '') + (f.yesno ? ' yesno' : ''));
     box.setAttribute('role', f.type === 'multi' ? 'group' : 'radiogroup');
     box.setAttribute('aria-labelledby', `lbl-${f.id}`);
     const opts = f.options.slice();
@@ -513,6 +530,16 @@ function rememberRecent(f, v) {
     writeJSON(RECENT_KEY, all);
 }
 
+// Study-area locations from config.js: all of them for an empty box, else the
+// ones containing every typed word.
+function presetFor(f, text) {
+    if (!f.presets) return [];
+    const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+    return (CONFIG.presetLocations || [])
+        .filter(name => words.every(w => name.toLowerCase().includes(w)))
+        .map(name => ({ main: name, sub: 'Study-area location', label: name, lat: null, lon: null, source: 'list', preset: true }));
+}
+
 function buildPlaceField(q, f) {
     const wrap = el('div', 'place');
     wrap.innerHTML = `<i class="fa-solid ${f.recent ? 'fa-route' : 'fa-location-dot'} place-icon"></i>`;
@@ -539,7 +566,8 @@ function buildPlaceField(q, f) {
     const hide = () => { list.classList.add('hidden'); input.setAttribute('aria-expanded', 'false'); active = -1; };
     const setStatus = () => {
         const v = answers[f.id];
-        if (v && v.lat != null) { status.textContent = '✓ Place selected from map suggestions'; status.className = 'place-status ok'; }
+        if (v && v.source === 'list' && v.confirmed) { status.textContent = '✓ Study-area location'; status.className = 'place-status ok'; }
+        else if (v && v.lat != null) { status.textContent = '✓ Place selected from map suggestions'; status.className = 'place-status ok'; }
         else if (v && v.text && v.confirmed) { status.textContent = '✓ Saved as typed'; status.className = 'place-status ok'; }
         else if (v && v.text) { status.textContent = 'Typed text will be saved as written'; status.className = 'place-status'; }
         else { status.textContent = ''; status.className = 'place-status'; }
@@ -560,7 +588,7 @@ function buildPlaceField(q, f) {
         list.innerHTML = '';
         items.forEach((r, i) => {
             const li = el('li', r.typed ? 's-typed' : '',
-                `<div class="s-main">${r.typed ? '<i class="fa-solid fa-keyboard"></i> ' : ''}${escapeHtml(r.main)}${r.recent ? '<span class="s-tag">recent</span>' : ''}</div>` +
+                `<div class="s-main">${r.typed ? '<i class="fa-solid fa-keyboard"></i> ' : r.preset ? '<i class="fa-solid fa-map-pin"></i> ' : ''}${escapeHtml(r.main)}${r.recent ? '<span class="s-tag">recent</span>' : ''}</div>` +
                 (r.sub ? `<div class="s-sub">${escapeHtml(r.sub)}</div>` : ''));
             li.setAttribute('role', 'option');
             li.id = `${list.id}-${i}`;
@@ -570,7 +598,7 @@ function buildPlaceField(q, f) {
             list.appendChild(li);
         });
         if (info) list.appendChild(el('li', 's-info', escapeHtml(info)));
-        if (rest.some(r => !r.recent) && !info) {
+        if (rest.some(r => !r.recent && !r.preset) && !info) {
             list.appendChild(el('li', 's-attrib', CONFIG.googlePlacesApiKey ? 'Powered by Google' : 'Suggestions © OpenStreetMap contributors'));
         }
         const open = items.length > 0 || !!info;
@@ -581,6 +609,9 @@ function buildPlaceField(q, f) {
     const choose = async i => {
         const r = items[i];
         if (!r) return;
+        // Cancel any search still pending from typing, so the list can't reopen.
+        clearTimeout(timer);
+        if (controller) controller.abort();
         input.value = r.label;
         answers[f.id] = { text: r.label, lat: r.lat ?? null, lon: r.lon ?? null, source: r.source, placeId: r.placeId || '', confirmed: true };
         hide();
@@ -607,7 +638,7 @@ function buildPlaceField(q, f) {
 
     const search = async text => {
         const qText = text.trim();
-        const recent = recentFor(f, qText);
+        const recent = recentFor(f, qText).concat(presetFor(f, qText));
         if (!qText) { recent.length ? showItems(recent) : hide(); return; }
         if (qText.length < 2) { showItems(recent); return; }
         if (!navigator.onLine) { showItems(recent, 'Offline: no map suggestions.'); return; }
@@ -631,7 +662,7 @@ function buildPlaceField(q, f) {
         clearTimeout(timer);
         // Refresh straight away so no stale suggestion from the previous text can be picked.
         const t = input.value.trim();
-        if (t) showItems(recentFor(f, t), t.length >= 2 ? 'Searching…' : null); else hide();
+        if (t) showItems(recentFor(f, t).concat(presetFor(f, t)), t.length >= 2 ? 'Searching…' : null); else search('');
         timer = setTimeout(() => search(input.value), 350);
     });
     input.addEventListener('focus', () => {
@@ -775,8 +806,7 @@ function buildRecord() {
         sessionId: session.id,
         name: session.name,
         locationId: session.locationId,
-        street: session.street,
-        surveyRound: session.round,
+        locationName: session.locationName || '',
         gpsLat: gps.lat ?? '', gpsLon: gps.lon ?? '',
         respondentNo: nextRespondentNo(),
         date: formatDate(now),
@@ -787,10 +817,13 @@ function buildRecord() {
         origin: origin.text, originLat: origin.lat, originLon: origin.lon,
         destination: dest.text, destinationLat: dest.lat, destinationLon: dest.lon,
         accessMode: singleValue('accessMode'),
+        egressMode: singleValue('egressMode'),
         accessPoint: singleValue('accessPoint'),
         accessPointName: notesValue('accessPoint'),
         entryPoint: entry.text, exitPoint: exit.text,
-        walkDistance: singleValue('walkDistance'),
+        usedUnderpass: singleValue('usedUnderpass'),
+        underpassReason: answers.usedUnderpass === 'No' ? multiValue('underpassReason') : '',
+        walkTime: singleValue('walkTime'),
         barriers: multiValue('barriers'),
         barriersNotes: notesValue('barriers'),
         improvements: multiValue('improvements'),
@@ -809,10 +842,11 @@ function resetForm() {
 $('btn-save').addEventListener('click', async () => {
     const n = refreshProgress();
     if (n === 0) { showToast('Nothing answered yet', 'error'); return; }
-    if (n < FORM.length) {
-        const missing = FORM.filter(f => !isAnswered(f)).map(f => `<li>${escapeHtml(f.label)}</li>`).join('');
+    const total = visibleQuestions().length;
+    if (n < total) {
+        const missing = visibleQuestions().filter(f => !isAnswered(f)).map(f => `<li>${escapeHtml(f.label)}</li>`).join('');
         const ok = await openModal({
-            title: `Save with ${FORM.length - n} unanswered?`,
+            title: `Save with ${total - n} unanswered?`,
             html: `These questions are blank:<ul style="margin:0.5rem 0 0 1.2rem">${missing}</ul>`,
             okLabel: 'Save anyway',
             cancelLabel: 'Go back'
@@ -887,7 +921,7 @@ $('btn-end').addEventListener('click', async () => {
     const draftN = refreshProgress();
     const ok = await openModal({
         title: 'End survey?',
-        html: `Location <b>${escapeHtml(session.locationId)}</b>, round ${escapeHtml(session.round)}: ${records.length} respondent(s) saved.` +
+        html: `Location <b>${escapeHtml(session.locationId)}</b> (${escapeHtml(session.locationName || '')}): ${records.length} respondent(s) saved.` +
             (draftN ? '<br><b>The form on screen is not saved yet</b> and will be kept as a draft.' : ''),
         okLabel: 'End survey',
         danger: true
@@ -899,7 +933,7 @@ $('btn-end').addEventListener('click', async () => {
     syncQueue();
     const pending = readJSON(QUEUE_KEY, []).length;
     await openModal({
-        title: `${session.locationId} · Round ${session.round}: survey ended`,
+        title: `${session.locationId} · ${session.locationName || ''}: survey ended`,
         html: `<table>
             <tr><td>Respondents saved</td><td>${records.length}</td></tr>
             <tr><td>Waiting to sync (this device)</td><td>${pending}</td></tr>
@@ -914,11 +948,9 @@ $('btn-end').addEventListener('click', async () => {
 function fillSetupFromSession() {
     inputName.value = session.name || '';
     inputLocId.value = session.locationId || '';
-    inputStreet.value = session.street || '';
-    setupRound = session.round || '';
+    inputLocName.value = session.locationName || '';
     setupGps = session.gps || null;
     if (setupGps) showGpsStatus(`GPS saved: ${setupGps.lat}, ${setupGps.lon}`, 'ok');
-    renderRound();
     checkSetupForm();
 }
 
@@ -1017,6 +1049,7 @@ function init() {
         document.querySelector('#screen-welcome .subtitle').textContent = `${CONFIG.surveyAreaName} · One form per respondent`;
     }
 
+    $('preset-locations').innerHTML = (CONFIG.presetLocations || []).map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
     buildForm();
     if (session) fillSetupFromSession();
     if (session && session.active) {

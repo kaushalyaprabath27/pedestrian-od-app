@@ -4,27 +4,31 @@ Offline-first PWA for the pedestrian O–D and intercept survey (Section 5.1.2):
 
 ## How a surveyor uses it
 
-1. **Setup:** Surveyor, **Location ID**, **Street**, **Survey Round (1 / 2 / 3)**, optional **GPS**, then **Start Survey**.
-2. **Recorded automatically:** Respondent No. (1, 2, 3… per location, round and day on this phone), Date and Time (taken when the form is saved).
+1. **Setup:** Surveyor, **Location ID**, **Location Name** (suggests the study-area list as you type), optional **GPS**, then **Start Survey**.
+2. **Recorded automatically:** Respondent No. (1, 2, 3… per location and day on this phone), Date and Time (taken when the form is saved).
 3. **Questions** (most are a single tap):
-   1. Respondent / trip category
-   2. Age category
-   3. Gender
-   4. Origin – type-ahead place suggestions (typed text is always the first suggestion)
+   1. Gender
+   2. Age category (Under 18 / 18–40 / 41–60 / Over 60)
+   3. Respondent / trip category (incl. School child, University student, Other student, Patient)
+   4. Origin – suggests the 14 study-area locations (all of them when the box is empty), then map places; the typed text is always the first suggestion
    5. Principal destination – same
    6. Access mode used to enter the study area
-   7. Boarding / alighting / parking / drop-off location (+ optional name of the stop, stand or car park)
-   8. Route used: entry point – suggestions close to the site, plus points already used at this location
-   9. Route used: exit point – same
-   10. Approximate walking distance / time
-   11. Existing barriers experienced – **select all that apply**, *None*, *Other* (type it) and a details box
-   12. Priority improvements requested – **select all that apply**, *None*, *Other* and a details box
+   7. Egress mode used to leave the study area
+   8. Boarding / alighting / parking / drop-off location (+ optional name)
+   9. Route used: entry point – study-area list, points used before at this location, nearby places
+   10. Route used: exit point – same
+   11. Did you use an underpass on this journey? Yes / No – **No** opens **11a Why not?** (Don't know about underpasses / Difficult to use / Other; tick all that apply)
+   12. Approximate walking time (Under 5 / 5–10 / 10–15 / Over 15 min)
+   13. Existing barriers experienced – select all that apply, *None*, *Other* and details
+   14. Priority improvements requested – select all that apply (incl. Signalized crossing, Elevated crossing), *None*, *Other* and details
 4. **Save respondent.** The form clears and the next respondent number appears. A half-filled form survives closing the app.
 5. **Undo** deletes the last saved respondent (until it has been sent) and its number is reused. **End** finishes the survey.
 
+The study-area location list is `presetLocations` in [`config.js`](config.js).
+
 ## Data (sheet tab `pedestrian-od`)
 
-Location ID, Street, Survey Round, Surveyor, Respondent No., Date, Time, GPS Lat/Lon, Respondent / Trip Category, Age Category, Gender, Origin + Lat/Lon, Principal Destination + Lat/Lon, Access Mode, Boarding/Alighting/Parking/Drop-off Location, Stop / Stand / Car Park Name, Route Entry Point, Route Exit Point, Walking Distance / Time, Existing Barriers, Barrier Details, Priority Improvements, Improvement Details, EventID.
+Location ID, Location Name, Surveyor, Respondent No., Date, Time, GPS Lat/Lon, Respondent / Trip Category, Age Category, Gender, Origin + Lat/Lon, Principal Destination + Lat/Lon, Access Mode, Egress Mode, Boarding/Alighting/Parking/Drop-off Location, Stop / Stand / Car Park Name, Route Entry Point, Route Exit Point, Used Underpass, Why No Underpass, Walking Time, Existing Barriers, Barrier Details, Priority Improvements, Improvement Details, EventID.
 
 "Other" answers are saved as `Other: <text>`; multiple answers are separated by `; `. The sheet menu **Pedestrian O-D → Build / refresh summary** counts every answer to each categorical question, overall and per Location ID.
 

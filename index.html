@@ -44,16 +44,9 @@
                     <input type="text" id="location-id" placeholder="e.g. P-01" autocomplete="off">
                 </div>
                 <div class="form-group">
-                    <label for="street-name"><i class="fa-solid fa-road"></i> Street</label>
-                    <input type="text" id="street-name" placeholder="e.g. Dalada Veediya" autocomplete="off">
-                </div>
-                <div class="form-group">
-                    <span class="group-label" id="lbl-round"><i class="fa-solid fa-rotate"></i> Survey Round</span>
-                    <div class="segmented segmented-lg" id="survey-round" role="radiogroup" aria-labelledby="lbl-round">
-                        <button type="button" data-value="1" role="radio">Round 1</button>
-                        <button type="button" data-value="2" role="radio">Round 2</button>
-                        <button type="button" data-value="3" role="radio">Round 3</button>
-                    </div>
+                    <label for="location-name"><i class="fa-solid fa-map-pin"></i> Location Name</label>
+                    <input type="text" id="location-name" list="preset-locations" placeholder="Start typing, e.g. Clock Tower TT" autocomplete="off">
+                    <datalist id="preset-locations"></datalist>
                 </div>
                 <div class="form-group">
                     <span class="group-label"><i class="fa-solid fa-location-crosshairs"></i> GPS <span class="opt">(optional)</span></span>
@@ -70,8 +63,7 @@
             <header class="topbar">
                 <div class="session-info">
                     <span class="chip chip-strong"><i class="fa-solid fa-hashtag"></i> <b id="info-location">-</b></span>
-                    <span class="chip"><i class="fa-solid fa-road"></i> <span id="info-street">-</span></span>
-                    <span class="chip"><i class="fa-solid fa-rotate"></i> R<span id="info-round">-</span></span>
+                    <span class="chip"><i class="fa-solid fa-map-pin"></i> <span id="info-location-name">-</span></span>
                     <span class="chip hide-sm"><i class="fa-solid fa-user"></i> <span id="info-name">-</span></span>
                 </div>
                 <div class="header-actions">
