@@ -28,7 +28,7 @@ The study-area location list is `presetLocations` in [`config.js`](config.js).
 
 ## Data (sheet tab `pedestrian-od`)
 
-Location ID, Location Name, Surveyor, Respondent No., Date, Time, GPS Lat/Lon, Respondent / Trip Category, Age Category, Gender, Origin + Lat/Lon, Principal Destination + Lat/Lon, Access Mode, Egress Mode, Boarding/Alighting/Parking/Drop-off Location, Stop / Stand / Car Park Name, Route Entry Point, Route Exit Point, Used Underpass, Why No Underpass, Walking Time, Existing Barriers, Barrier Details, Priority Improvements, Improvement Details, EventID.
+Location ID, Location Name, Surveyor, Respondent No., Date, Time, GPS Lat/Lon, Gender, Age Category, Respondent / Trip Category, Origin + Lat/Lon, Principal Destination + Lat/Lon, Access Mode, Egress Mode, Boarding/Alighting/Parking/Drop-off Location, Stop / Stand / Car Park Name, Route Entry Point, Route Exit Point, Used Underpass, Why No Underpass, Walking Time, Existing Barriers, Barrier Details, Priority Improvements, Improvement Details, EventID.
 
 "Other" answers are saved as `Other: <text>`; multiple answers are separated by `; `. The sheet menu **Pedestrian O-D → Build / refresh summary** counts every answer to each categorical question, overall and per Location ID.
 
