@@ -11,17 +11,16 @@ Offline-first PWA for the pedestrian O–D and intercept survey (Section 5.1.2):
    2. Age category (Under 18 / 18–40 / 41–60 / Over 60)
    3. Origin – suggests the 14 study-area locations (all of them when the box is empty), then map places; the typed text is always the first suggestion
    4. Principal destination – same
-   5. Respondent / trip category (incl. School child, University student, Other student, Patient, Pilgrim)
+   5. Respondent / trip category (incl. School child, University student, Other student, Patient, Pilgrim) – **Passing through** opens **5a 1st bus stand passed** and **5b 2nd bus stand passed** (study-area list, stands used before at this location, map places)
    6. Did you use an underpass on this journey? Yes / No – **No** opens **Why not?** (Don't know about underpasses / Difficult to use / Other; tick all that apply)
    7. Access mode used to enter the study area
    8. Egress mode used to leave the study area
    9. Boarding / alighting / parking / drop-off location (+ optional name)
    10. **Route used: draw on the map** – tap where the walk started, each turn, then the end. Each part follows the footpaths/streets (OpenStreetMap walking routes); if there is no signal it is drawn straight. *Undo point*, *Clear* and *Full screen* buttons. Opens on the **satellite** photo with road names (switch to *Street map* in the corner; the choice is remembered). Only **Kandy town** can be viewed and tapped (dashed yellow box) – change `mapBounds` in [`config.js`](config.js) to move or enlarge it. Needs internet for the map.
    11. Route used: landmarks passed – add as many as needed, in order (numbered; tap × to remove)
-   12. Route used: exit point – study-area list, points used before at this location, nearby places
-   13. Approximate walking time (Less than 5 / 5–10 / 10–15 / Over 15 min)
-   14. Existing barriers experienced – select all that apply, *None*, *Other* and details
-   15. Priority improvements requested – select all that apply (incl. Signalized crossing, Elevated crossing), *None*, *Other* and details
+   12. Approximate walking time (Less than 5 / 5–10 / 10–15 / Over 15 min)
+   13. Existing barriers experienced – select all that apply, *None*, *Other* and details
+   14. Priority improvements requested – select all that apply (incl. Signalized crossing, Elevated crossing), *None*, *Other* and details
 4. **Save respondent.** The form clears for the next respondent. A half-filled form (including the drawn route) survives closing the app.
 5. **Undo** deletes the last saved respondent (until it has been sent). **End** finishes the survey.
 
@@ -29,7 +28,7 @@ The study-area location list is `presetLocations` in [`config.js`](config.js).
 
 ## Data (sheet tab `pedestrian-od`)
 
-Location ID, Location Name, Surveyor, Date, Time, GPS Lat/Lon, Gender, Age Category, Origin + Lat/Lon, Principal Destination + Lat/Lon, Respondent / Trip Category, Used Underpass, Why No Underpass, Access Mode, Egress Mode, Boarding/Alighting/Parking/Drop-off Location, Stop / Stand / Car Park Name, Route Map Link, Route Length (m), Landmarks Passed, Route Exit Point, Walking Time, Existing Barriers, Barrier Details, Priority Improvements, Improvement Details, Route Points (lat,lon), Route Path (encoded polyline), EventID.
+Location ID, Location Name, Surveyor, Date, Time, GPS Lat/Lon, Gender, Age Category, Origin + Lat/Lon, Principal Destination + Lat/Lon, Respondent / Trip Category, Passing Bus Stand 1, Passing Bus Stand 2, Used Underpass, Why No Underpass, Access Mode, Egress Mode, Boarding/Alighting/Parking/Drop-off Location, Stop / Stand / Car Park Name, Route Map Link, Route Length (m), Landmarks Passed, Walking Time, Existing Barriers, Barrier Details, Priority Improvements, Improvement Details, Route Points (lat,lon), Route Path (encoded polyline), EventID.
 
 **Route columns:** *Route Map Link* opens the walk in Google Maps (walking directions through up to 8 of the tapped points). *Route Points* are the tapped points in order. *Route Path* is the full street-following line as a Google encoded polyline – paste it into a polyline decoder or decode it in Python (`polyline.decode(...)`) / QGIS to map every route.
 

@@ -21,9 +21,10 @@ const CONFIG = Object.assign({
 
 const PLACEHOLDER_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE';
 const SURVEY_TYPE = 'pedestrian-od';
-// v3: route drawn on a map + landmarks instead of entry point; no respondent
-// number. (v2: location name, egress mode, underpass questions.)
-const SYNC_ACTION = 'submit_od_v3';
+// v4: passing-through bus stands; no exit point. (v3: route drawn on a map +
+// landmarks, no entry point or respondent number. v2: location name, egress
+// mode, underpass questions.)
+const SYNC_ACTION = 'submit_od_v4';
 const BATCH_SIZE = 50;
 const SYNC_INTERVAL_MS = 15000;
 
@@ -32,7 +33,7 @@ const BACKUP_KEY = 'pedod_backup';    // every response saved on this device
 const SESSION_KEY = 'pedod_session';  // surveyor / location ID / location name
 const DRAFT_KEY = 'pedod_draft';      // the form currently being filled in
 const HISTORY_KEY = 'pedod_history';  // undo stack (eventIds)
-const RECENT_KEY = 'pedod_recent';    // entry/exit points used before, per location
+const RECENT_KEY = 'pedod_recent';    // places used before, per location
 const THEME_KEY = 'pedod_theme';
 
 // ---------------------------------------------------------------------
@@ -43,12 +44,13 @@ const THEME_KEY = 'pedod_theme';
 //   route  - map: tap points, the walking route is drawn along the streets
 //            nearby: true ranks places close to the site first
 //            recent: true also offers values used before at this location
+//            recentGroup: fields with the same group share those values
 //   single - pick one        multi - pick any number
 //   other: true adds "Other" with a text box
 //   notes: 'placeholder' adds a free-text box under the options
 //   exclusive: an option that clears the others when picked (e.g. 'None')
 //   showIf: answers => boolean  shows the question only when true (numbered
-//   as a sub-question, e.g. 6a, and not counted while hidden)
+//   as a sub-question, e.g. 5a, 5b, and not counted while hidden)
 // An option can carry an icon: a Font Awesome name or inline SVG.
 // ---------------------------------------------------------------------
 const TUKTUK_SVG = '<svg class="svg-icon" viewBox="1.8 1.4 28.4 23" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M2.5 13V6.2Q2.5 2 7 2H24.2Q26.4 2 26.7 3.8L27.9 12.4H26.1L25.1 4.3H7.6Q5.3 4.3 5.3 6.6V13Z"/><path d="M3.5 12.6H27.4Q29.7 12.6 29.7 15Q29.7 16.4 28.6 17.6L27.8 18.6H10.77A3.6 3.6 0 0 0 5.23 18.6H4.6Q2.4 18.6 2.4 16.2V13.7Q2.4 12.6 3.5 12.6ZM27.5 14.6a0.85 0.85 0 1 0 1.7 0a0.85 0.85 0 1 0 -1.7 0Z"/><path d="M22.6 12.6L24.6 8.4L25.5 8.8L23.8 12.6Z"/><path d="M5 20.9a3 3 0 1 0 6 0a3 3 0 1 0 -6 0ZM6.9 20.9a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0 -2.2 0ZM24 21.4a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0 -5 0ZM25.6 21.4a0.9 0.9 0 1 0 1.8 0a0.9 0.9 0 1 0 -1.8 0Z"/><path d="M26.05 18.4H26.95V20.5H26.05Z"/></svg>';
@@ -87,6 +89,15 @@ const FORM = [
             ['Vendor / trader', 'fa-store']
         ]
     },
+    // Passing through: the two bus stands they are walking between.
+    {
+        id: 'passStand1', label: '1st bus stand passed', type: 'place', presets: true, nearby: true, recent: true, recentGroup: 'passStand',
+        showIf: a => a.category === 'Passing through', hint: 'Bus stand they came from', placeholder: 'Start typing a bus stand'
+    },
+    {
+        id: 'passStand2', label: '2nd bus stand passed', type: 'place', presets: true, nearby: true, recent: true, recentGroup: 'passStand',
+        showIf: a => a.category === 'Passing through', hint: 'Bus stand they are going to', placeholder: 'Start typing a bus stand'
+    },
     { id: 'usedUnderpass', label: 'Did you use an underpass on this journey?', type: 'single', yesno: true, options: ['Yes', 'No'] },
     // Follow-up shown only when the answer above is No.
     {
@@ -123,7 +134,6 @@ const FORM = [
         id: 'landmarks', label: 'Route used: landmarks passed', type: 'place', multi: true, presets: true, nearby: true, recent: true,
         hint: 'Add each landmark in order', placeholder: 'Type a landmark, then pick it'
     },
-    { id: 'exitPoint', label: 'Route used: exit point', type: 'place', presets: true, nearby: true, recent: true, hint: 'Where they will leave it', placeholder: 'Junction, road or landmark' },
     {
         id: 'walkTime', label: 'Approximate walking time', type: 'single',
         options: ['Less than 5 min', '5–10 min', '10–15 min', 'Over 15 min']
@@ -386,11 +396,12 @@ const renderers = {}; // id -> function that refreshes that question from `answe
 
 function buildForm() {
     formEl.innerHTML = '';
-    let num = 0;
+    let num = 0, sub = 0;
     FORM.forEach(f => {
         const q = el('section', 'q');
         q.dataset.q = f.id;
-        const qNum = f.showIf ? `${num}a` : String(++num);
+        // Sub-questions follow their main question: 5a, 5b, ...
+        const qNum = f.showIf ? num + 'abcdefgh'[sub++] : (sub = 0, String(++num));
         const label = el('div', 'q-label',
             `<span class="q-num">${qNum}</span><span>${escapeHtml(f.label)}</span>` +
             (f.hint ? `<span class="q-hint">${escapeHtml(f.hint)}</span>` : ''));
@@ -510,7 +521,7 @@ function isSelected(f, value) {
 }
 
 // ----- Place fields (type-ahead suggestions) -----
-function recentKey(f) { return `${f.id}|${session ? session.locationId : ''}`; }
+function recentKey(f) { return `${f.recentGroup || f.id}|${session ? session.locationId : ''}`; }
 function recentFor(f, text) {
     if (!f.recent) return [];
     const t = text.toLowerCase();
@@ -1056,7 +1067,7 @@ async function photonSuggestions(text, nearby, signal) {
     if (here) {
         p.set('lat', here.lat);
         p.set('lon', here.lon);
-        // Entry/exit points: strongly prefer the immediate area; trips: gentle bias.
+        // Bus stands / landmarks: strongly prefer the immediate area; trips: gentle bias.
         p.set('zoom', nearby ? '16' : '10');
         p.set('location_bias_scale', nearby ? '0' : '0.2');
     }
@@ -1136,7 +1147,7 @@ function notesValue(id) { return (answers[id + 'Notes'] || '').trim(); }
 function buildRecord() {
     const now = Date.now();
     const origin = placeParts('origin'), dest = placeParts('destination');
-    const exit = placeParts('exitPoint');
+    const passing = answers.category === 'Passing through';
     const gps = session.gps || {};
     return {
         action: 'submit',
@@ -1150,6 +1161,8 @@ function buildRecord() {
         date: formatDate(now),
         time: formatTime(now),
         category: singleValue('category'),
+        passStand1: passing ? placeParts('passStand1').text : '',
+        passStand2: passing ? placeParts('passStand2').text : '',
         age: singleValue('age'),
         gender: singleValue('gender'),
         origin: origin.text, originLat: origin.lat, originLon: origin.lon,
@@ -1160,7 +1173,6 @@ function buildRecord() {
         accessPointName: notesValue('accessPoint'),
         ...routeRecord(answers.route),
         landmarks: (Array.isArray(answers.landmarks) ? answers.landmarks : []).map(x => x.text).join('; '),
-        exitPoint: exit.text,
         usedUnderpass: singleValue('usedUnderpass'),
         underpassReason: answers.usedUnderpass === 'No' ? multiValue('underpassReason') : '',
         walkTime: singleValue('walkTime'),

@@ -16,17 +16,16 @@ window.PEDOD_CONFIG = {
     surveyAreaName: 'Kandy',
 
     // Study-area locations offered first as you type Location Name, Origin,
-    // Principal destination and Route entry/exit (tap an empty box to see all).
+    // Principal destination, passing bus stands and landmarks (tap an empty box to see all).
     presetLocations: [
         'Bogambara TT',
         'SWRD Bandaranayake Mw TT',
         'Clock Tower TT',
-        'Torrington (Penideniya) TT',
-        'Torrington (Market) TT',
+        'Torrington TT',
         'Prison Front TT',
         'Front of Swarnamahal TT',
         'Kachcheriya (DS) TT',
-        'Infront of Maligawa',
+        'Infront of Dalada Maligawa',
         'Kandy DS office',
         'Kandy Municipal Council',
         'Kandy Hospital (Hanthana Entrance)',

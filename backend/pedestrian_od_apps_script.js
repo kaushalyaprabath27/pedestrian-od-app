@@ -42,6 +42,8 @@ const COLUMNS = [
   ["Destination Lat", "destinationLat", "num"],
   ["Destination Lon", "destinationLon", "num"],
   ["Respondent / Trip Category", "category", "text"],
+  ["Passing Bus Stand 1", "passStand1", "text"],
+  ["Passing Bus Stand 2", "passStand2", "text"],
   ["Used Underpass", "usedUnderpass", "text"],
   ["Why No Underpass", "underpassReason", "text"],
   ["Access Mode", "accessMode", "text"],
@@ -51,7 +53,6 @@ const COLUMNS = [
   ["Route Map Link", "routeMapLink", "long"],
   ["Route Length (m)", "routeLengthM", "num"],
   ["Landmarks Passed", "landmarks", "long"],
-  ["Route Exit Point", "exitPoint", "text"],
   ["Walking Time", "walkTime", "text"],
   ["Existing Barriers", "barriers", "text"],
   ["Barrier Details", "barriersNotes", "long"],
@@ -95,9 +96,9 @@ function handleRequest(e) {
     for (const key in params) data[key] = params[key];
 
     const action = data.action;
-    // v3 = current app. v2 / v1 (earlier builds) are still accepted; fields
+    // v4 = current app. v1-v3 (earlier builds) are still accepted; fields
     // they lack stay blank and fields no longer used are ignored.
-    if (/^submit_od_v[1-3]$/.test(action || "")) return handleSubmitBatch(data);
+    if (/^submit_od_v[1-4]$/.test(action || "")) return handleSubmitBatch(data);
     if (!action) return responseJson({ status: "success", message: "Pedestrian O-D survey backend is running." });
     return responseJson({ status: "error", message: "Invalid action" });
   } catch (error) {
