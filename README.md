@@ -11,10 +11,10 @@ Offline-first PWA for the pedestrian O–D and intercept survey (Section 5.1.2):
    2. Age category (Under 18 / 18–40 / 41–60 / Over 60)
    3. Origin – suggests the 14 study-area locations (all of them when the box is empty), then map places; the typed text is always the first suggestion
    4. Principal destination – same
-   5. Respondent / trip category (incl. School child, University student, Other student, Patient, Pilgrim) – **Passing through** opens **5a 1st bus stand passed** and **5b 2nd bus stand passed** (study-area list, stands used before at this location, map places)
+   5. Respondent / trip category (incl. School child, University student, Other student, Patient, Pilgrim)
    6. Did you use an underpass on this journey? Yes / No – **No** opens **Why not?** (Don't know about underpasses / Difficult to use / Other; tick all that apply)
-   7. Access mode used to enter the study area
-   8. Egress mode used to leave the study area
+   7. Access mode used to enter the study area – **Bus** opens **7a Bus stand where they got off**
+   8. Egress mode used to leave the study area – **Bus** opens **8a Bus stand where they will board** (both suggest the study-area list, stands used before at this location, map places; saved as *Passing Bus Stand 1* / *2*)
    9. Boarding / alighting / parking / drop-off location (+ optional name)
    10. **Route used: draw on the map** – tap where the walk started, each turn, then the end. Each part follows the footpaths/streets (OpenStreetMap walking routes); if there is no signal it is drawn straight. *Undo point*, *Clear* and *Full screen* buttons. Opens on the **satellite** photo with road names (switch to *Street map* in the corner; the choice is remembered). Only **Kandy town** can be viewed and tapped (dashed yellow box) – change `mapBounds` in [`config.js`](config.js) to move or enlarge it. Needs internet for the map.
    11. Route used: landmarks passed – add as many as needed, in order (numbered; tap × to remove)

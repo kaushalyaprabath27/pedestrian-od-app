@@ -21,7 +21,7 @@ const CONFIG = Object.assign({
 
 const PLACEHOLDER_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE';
 const SURVEY_TYPE = 'pedestrian-od';
-// v4: passing-through bus stands; no exit point. (v3: route drawn on a map +
+// v4: bus stand when access / egress is by bus; no exit point. (v3: route drawn on a map +
 // landmarks, no entry point or respondent number. v2: location name, egress
 // mode, underpass questions.)
 const SYNC_ACTION = 'submit_od_v4';
@@ -89,15 +89,6 @@ const FORM = [
             ['Vendor / trader', 'fa-store']
         ]
     },
-    // Passing through: the two bus stands they are walking between.
-    {
-        id: 'passStand1', label: '1st bus stand passed', type: 'place', presets: true, nearby: true, recent: true, recentGroup: 'passStand',
-        showIf: a => a.category === 'Passing through', hint: 'Bus stand they came from', placeholder: 'Start typing a bus stand'
-    },
-    {
-        id: 'passStand2', label: '2nd bus stand passed', type: 'place', presets: true, nearby: true, recent: true, recentGroup: 'passStand',
-        showIf: a => a.category === 'Passing through', hint: 'Bus stand they are going to', placeholder: 'Start typing a bus stand'
-    },
     { id: 'usedUnderpass', label: 'Did you use an underpass on this journey?', type: 'single', yesno: true, options: ['Yes', 'No'] },
     // Follow-up shown only when the answer above is No.
     {
@@ -112,9 +103,19 @@ const FORM = [
         id: 'accessMode', label: 'Access mode used to enter study area', type: 'single', other: true, grid: true,
         options: MODES
     },
+    // Bus stands: asked only when they arrive / leave by bus (sheet columns
+    // "Passing Bus Stand 1" and "Passing Bus Stand 2").
+    {
+        id: 'passStand1', label: 'Bus stand where they got off', type: 'place', presets: true, nearby: true, recent: true, recentGroup: 'passStand',
+        showIf: a => a.accessMode === 'Bus', hint: 'Arrived by bus', placeholder: 'Start typing a bus stand'
+    },
     {
         id: 'egressMode', label: 'Egress mode used to leave study area', type: 'single', other: true, grid: true,
         options: MODES
+    },
+    {
+        id: 'passStand2', label: 'Bus stand where they will board', type: 'place', presets: true, nearby: true, recent: true, recentGroup: 'passStand',
+        showIf: a => a.egressMode === 'Bus', hint: 'Leaving by bus', placeholder: 'Start typing a bus stand'
     },
     {
         id: 'accessPoint', label: 'Boarding / alighting / parking / drop-off location', type: 'single', other: true, grid: true,
@@ -1147,7 +1148,6 @@ function notesValue(id) { return (answers[id + 'Notes'] || '').trim(); }
 function buildRecord() {
     const now = Date.now();
     const origin = placeParts('origin'), dest = placeParts('destination');
-    const passing = answers.category === 'Passing through';
     const gps = session.gps || {};
     return {
         action: 'submit',
@@ -1161,8 +1161,8 @@ function buildRecord() {
         date: formatDate(now),
         time: formatTime(now),
         category: singleValue('category'),
-        passStand1: passing ? placeParts('passStand1').text : '',
-        passStand2: passing ? placeParts('passStand2').text : '',
+        passStand1: answers.accessMode === 'Bus' ? placeParts('passStand1').text : '',
+        passStand2: answers.egressMode === 'Bus' ? placeParts('passStand2').text : '',
         age: singleValue('age'),
         gender: singleValue('gender'),
         origin: origin.text, originLat: origin.lat, originLon: origin.lon,

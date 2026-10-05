@@ -42,8 +42,8 @@ const COLUMNS = [
   ["Destination Lat", "destinationLat", "num"],
   ["Destination Lon", "destinationLon", "num"],
   ["Respondent / Trip Category", "category", "text"],
-  ["Passing Bus Stand 1", "passStand1", "text"],
-  ["Passing Bus Stand 2", "passStand2", "text"],
+  ["Passing Bus Stand 1", "passStand1", "text"], // stand they got off at (access by bus)
+  ["Passing Bus Stand 2", "passStand2", "text"], // stand they will board at (egress by bus)
   ["Used Underpass", "usedUnderpass", "text"],
   ["Why No Underpass", "underpassReason", "text"],
   ["Access Mode", "accessMode", "text"],
