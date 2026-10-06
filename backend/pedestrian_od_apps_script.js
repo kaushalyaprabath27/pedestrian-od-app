@@ -42,12 +42,14 @@ const COLUMNS = [
   ["Destination Lat", "destinationLat", "num"],
   ["Destination Lon", "destinationLon", "num"],
   ["Respondent / Trip Category", "category", "text"],
-  ["Passing Bus Stand 1", "passStand1", "text"], // stand they got off at (access by bus)
-  ["Passing Bus Stand 2", "passStand2", "text"], // stand they will board at (egress by bus)
   ["Used Underpass", "usedUnderpass", "text"],
   ["Why No Underpass", "underpassReason", "text"],
   ["Access Mode", "accessMode", "text"],
+  ["Access Bus Terminal", "passStand1", "text"],
+  ["Access Bus Route", "accessBusRoute", "text"],
   ["Egress Mode", "egressMode", "text"],
+  ["Egress Bus Terminal", "passStand2", "text"],
+  ["Egress Bus Route", "egressBusRoute", "text"],
   ["Boarding/Alighting/Parking/Drop-off Location", "accessPoint", "text"],
   ["Stop / Stand / Car Park Name", "accessPointName", "text"],
   ["Route Map Link", "routeMapLink", "long"],
@@ -68,7 +70,8 @@ const EVENT_ID_COL = HEADERS.indexOf("EventID") + 1; // 1-based
 // Categorical columns counted on the Summary tab (per Location ID).
 const SUMMARY_FIELDS = [
   "Gender", "Age Category", "Respondent / Trip Category", "Used Underpass", "Why No Underpass",
-  "Access Mode", "Egress Mode", "Boarding/Alighting/Parking/Drop-off Location",
+  "Access Mode", "Access Bus Terminal", "Access Bus Route", "Egress Mode", "Egress Bus Terminal", "Egress Bus Route",
+  "Boarding/Alighting/Parking/Drop-off Location",
   "Walking Time", "Existing Barriers", "Priority Improvements"
 ];
 const MULTI_FIELDS = ["Why No Underpass", "Existing Barriers", "Priority Improvements"]; // "; "-separated
@@ -96,9 +99,9 @@ function handleRequest(e) {
     for (const key in params) data[key] = params[key];
 
     const action = data.action;
-    // v4 = current app. v1-v3 (earlier builds) are still accepted; fields
+    // v5 = current app. v1-v4 (earlier builds) are still accepted; fields
     // they lack stay blank and fields no longer used are ignored.
-    if (/^submit_od_v[1-4]$/.test(action || "")) return handleSubmitBatch(data);
+    if (/^submit_od_v[1-5]$/.test(action || "")) return handleSubmitBatch(data);
     if (!action) return responseJson({ status: "success", message: "Pedestrian O-D survey backend is running." });
     return responseJson({ status: "error", message: "Invalid action" });
   } catch (error) {

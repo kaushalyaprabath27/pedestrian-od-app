@@ -13,10 +13,10 @@ Offline-first PWA for the pedestrian O–D and intercept survey (Section 5.1.2):
    4. Principal destination – same
    5. Respondent / trip category (incl. School child, University student, Other student, Patient, Pilgrim)
    6. Did you use an underpass on this journey? Yes / No – **No** opens **Why not?** (Don't know about underpasses / Difficult to use / Other; tick all that apply)
-   7. Access mode used to enter the study area – **Bus** opens **7a Bus stand where they got off**
-   8. Egress mode used to leave the study area – **Bus** opens **8a Bus stand where they will board** (both suggest the study-area list, stands used before at this location, map places; saved as *Passing Bus Stand 1* / *2*)
+   7. Access mode used to enter the study area – **Bus** opens **7a Bus terminal where they got off** (study-area list, terminals used before at this location, map places) and **7b Bus route they came on** (e.g. *Colombo – Kandy*; suggests the `busRoutes` list in [`config.js`](config.js) and routes used before; any route can be typed)
+   8. Egress mode used to leave the study area – **Bus** opens **8a Bus terminal where they will board** and **8b Bus route they will take** (same suggestions)
    9. Boarding / alighting / parking / drop-off location (+ optional name)
-   10. **Route used: draw on the map** – tap where the walk started, each turn, then the end. Each part follows the footpaths/streets (OpenStreetMap walking routes); if there is no signal it is drawn straight. *Undo point*, *Clear* and *Full screen* buttons. Opens on the **satellite** photo with road names (switch to *Street map* in the corner; the choice is remembered). Only **Kandy town** can be viewed and tapped (dashed yellow box) – change `mapBounds` in [`config.js`](config.js) to move or enlarge it. Needs internet for the map.
+   10. **Route used: draw on the map** – tap where the walk started, each turn, then the end. Each part follows the footpaths/streets (OpenStreetMap walking routes); if there is no signal it is drawn straight. *Undo point*, *Clear* and *Full screen* buttons. **Full screen** shows only the map, a **search box** (type a place, road or shop in Kandy town → pick a suggestion → the map moves there and a red pin marks it; tap the pin to add it as a point), the points line, *Minimize*, *Undo point* and *Save route*. Opens on the **satellite** photo with road names (switch to *Street map* in the corner; the choice is remembered). Only **Kandy town** can be viewed and tapped (dashed yellow box) – change `mapBounds` in [`config.js`](config.js) to move or enlarge it. Needs internet for the map.
    11. Route used: landmarks passed – add as many as needed, in order (numbered; tap × to remove)
    12. Approximate walking time (Less than 5 / 5–10 / 10–15 / Over 15 min)
    13. Existing barriers experienced – select all that apply, *None*, *Other* and details
@@ -28,7 +28,7 @@ The study-area location list is `presetLocations` in [`config.js`](config.js).
 
 ## Data (sheet tab `pedestrian-od`)
 
-Location ID, Location Name, Surveyor, Date, Time, GPS Lat/Lon, Gender, Age Category, Origin + Lat/Lon, Principal Destination + Lat/Lon, Respondent / Trip Category, Passing Bus Stand 1, Passing Bus Stand 2, Used Underpass, Why No Underpass, Access Mode, Egress Mode, Boarding/Alighting/Parking/Drop-off Location, Stop / Stand / Car Park Name, Route Map Link, Route Length (m), Landmarks Passed, Walking Time, Existing Barriers, Barrier Details, Priority Improvements, Improvement Details, Route Points (lat,lon), Route Path (encoded polyline), EventID.
+Location ID, Location Name, Surveyor, Date, Time, GPS Lat/Lon, Gender, Age Category, Origin + Lat/Lon, Principal Destination + Lat/Lon, Respondent / Trip Category, Used Underpass, Why No Underpass, Access Mode, Access Bus Terminal, Access Bus Route, Egress Mode, Egress Bus Terminal, Egress Bus Route, Boarding/Alighting/Parking/Drop-off Location, Stop / Stand / Car Park Name, Route Map Link, Route Length (m), Landmarks Passed, Walking Time, Existing Barriers, Barrier Details, Priority Improvements, Improvement Details, Route Points (lat,lon), Route Path (encoded polyline), EventID.
 
 **Route columns:** *Route Map Link* opens the walk in Google Maps (walking directions through up to 8 of the tapped points). *Route Points* are the tapped points in order. *Route Path* is the full street-following line as a Google encoded polyline – paste it into a polyline decoder or decode it in Python (`polyline.decode(...)`) / QGIS to map every route.
 

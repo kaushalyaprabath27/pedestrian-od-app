@@ -608,6 +608,13 @@ body.has-host-badge .route-overlay.open { padding-bottom: 76px; }
 }
 .route-overlay .route-info.ok { color: #6ee7b7; }
 .route-overlay .route-info.warn { color: #fcd34d; }
+.route-search { display: none; }
+.route-overlay .route-search { display: block; position: absolute; z-index: 1002; top: max(12px, env(safe-area-inset-top)); left: 72px; right: 12px; }
+.route-overlay .route-search input { height: 48px; border-radius: 24px; padding-right: 14px; background: var(--sheet-bg); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+.route-overlay .route-search .suggest { max-height: 50vh; }
+.route-overlay .route-info { top: calc(max(12px, env(safe-area-inset-top)) + 58px); left: 12px; right: auto; min-height: 34px; padding: 4px 14px; font-size: 0.85rem; border-radius: 17px; }
+.route-search-pin { display: grid; place-items: end center; color: #dc2626; font-size: 30px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+.route-search-tip { font: 600 12px 'Inter', sans-serif; text-align: center; }
 body.route-full-open .theme-btn, body.route-full-open .topbar, body.route-full-open .save-bar { visibility: hidden; }
 
 /* Several places (landmarks) as chips */

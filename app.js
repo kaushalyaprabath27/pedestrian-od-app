@@ -21,10 +21,10 @@ const CONFIG = Object.assign({
 
 const PLACEHOLDER_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE';
 const SURVEY_TYPE = 'pedestrian-od';
-// v4: bus stand when access / egress is by bus; no exit point. (v3: route drawn on a map +
+// v5: bus terminal + bus route when access / egress is by bus; no exit point. (v3: route drawn on a map +
 // landmarks, no entry point or respondent number. v2: location name, egress
 // mode, underpass questions.)
-const SYNC_ACTION = 'submit_od_v4';
+const SYNC_ACTION = 'submit_od_v5';
 const BATCH_SIZE = 50;
 const SYNC_INTERVAL_MS = 15000;
 
@@ -45,6 +45,10 @@ const THEME_KEY = 'pedod_theme';
 //            nearby: true ranks places close to the site first
 //            recent: true also offers values used before at this location
 //            recentGroup: fields with the same group share those values
+//            presets: true = study-area locations; or the name of another list
+//              in config.js (e.g. 'busRoutes'), with presetSub as its caption
+//            mapSearch: false = only the lists / typed text, no map search
+//            icon: Font Awesome name for the box icon
 //   single - pick one        multi - pick any number
 //   other: true adds "Other" with a text box
 //   notes: 'placeholder' adds a free-text box under the options
@@ -103,19 +107,28 @@ const FORM = [
         id: 'accessMode', label: 'Access mode used to enter study area', type: 'single', other: true, grid: true,
         options: MODES
     },
-    // Bus stands: asked only when they arrive / leave by bus (sheet columns
-    // "Passing Bus Stand 1" and "Passing Bus Stand 2").
+    // Bus terminal and route: asked only when they arrive / leave by bus.
     {
-        id: 'passStand1', label: 'Bus stand where they got off', type: 'place', presets: true, nearby: true, recent: true, recentGroup: 'passStand',
-        showIf: a => a.accessMode === 'Bus', hint: 'Arrived by bus', placeholder: 'Start typing a bus stand'
+        id: 'passStand1', label: 'Bus terminal where they got off', type: 'place', presets: true, nearby: true, recent: true, recentGroup: 'passStand',
+        icon: 'fa-bus-simple', showIf: a => a.accessMode === 'Bus', hint: 'Arrived by bus', placeholder: 'Start typing a bus terminal / stand'
+    },
+    {
+        id: 'accessBusRoute', label: 'Bus route they came on', type: 'place', presets: 'busRoutes', presetSub: 'Bus route', mapSearch: false,
+        recent: true, recentGroup: 'busRoute', icon: 'fa-bus',
+        showIf: a => a.accessMode === 'Bus', hint: 'e.g. Colombo – Kandy', placeholder: 'Type a town, e.g. Colombo'
     },
     {
         id: 'egressMode', label: 'Egress mode used to leave study area', type: 'single', other: true, grid: true,
         options: MODES
     },
     {
-        id: 'passStand2', label: 'Bus stand where they will board', type: 'place', presets: true, nearby: true, recent: true, recentGroup: 'passStand',
-        showIf: a => a.egressMode === 'Bus', hint: 'Leaving by bus', placeholder: 'Start typing a bus stand'
+        id: 'passStand2', label: 'Bus terminal where they will board', type: 'place', presets: true, nearby: true, recent: true, recentGroup: 'passStand',
+        icon: 'fa-bus-simple', showIf: a => a.egressMode === 'Bus', hint: 'Leaving by bus', placeholder: 'Start typing a bus terminal / stand'
+    },
+    {
+        id: 'egressBusRoute', label: 'Bus route they will take', type: 'place', presets: 'busRoutes', presetSub: 'Bus route', mapSearch: false,
+        recent: true, recentGroup: 'busRoute', icon: 'fa-bus',
+        showIf: a => a.egressMode === 'Bus', hint: 'e.g. Kandy – Kurunegala', placeholder: 'Type a town, e.g. Kurunegala'
     },
     {
         id: 'accessPoint', label: 'Boarding / alighting / parking / drop-off location', type: 'single', other: true, grid: true,
@@ -542,19 +555,21 @@ function rememberRecent(f, v) {
     writeJSON(RECENT_KEY, all);
 }
 
-// Study-area locations from config.js: all of them for an empty box, else the
-// ones containing every typed word.
+// A list from config.js (study-area locations, or e.g. bus routes): all of it
+// for an empty box, else the entries containing every typed word.
 function presetFor(f, text) {
     if (!f.presets) return [];
-    const words = text.toLowerCase().split(/\s+/).filter(Boolean);
-    return (CONFIG.presetLocations || [])
+    const words = text.toLowerCase().split(/[\s\-–]+/).filter(Boolean);
+    const list = (f.presets === true ? CONFIG.presetLocations : CONFIG[f.presets]) || [];
+    const sub = f.presetSub || 'Study-area location';
+    return list
         .filter(name => words.every(w => name.toLowerCase().includes(w)))
-        .map(name => ({ main: name, sub: 'Study-area location', label: name, lat: null, lon: null, source: 'list', preset: true }));
+        .map(name => ({ main: name, sub, label: name, lat: null, lon: null, source: 'list', preset: true }));
 }
 
 function buildPlaceField(q, f) {
     const wrap = el('div', 'place');
-    wrap.innerHTML = `<i class="fa-solid ${f.recent ? 'fa-route' : 'fa-location-dot'} place-icon"></i>`;
+    wrap.innerHTML = `<i class="fa-solid ${f.icon || (f.recent ? 'fa-route' : 'fa-location-dot')} place-icon"></i>`;
     const input = el('input');
     input.type = 'text';
     input.placeholder = f.placeholder || '';
@@ -607,7 +622,7 @@ function buildPlaceField(q, f) {
             status.className = 'place-status' + (n ? ' ok' : '');
             return;
         }
-        if (v && v.source === 'list' && v.confirmed) { status.textContent = '✓ Study-area location'; status.className = 'place-status ok'; }
+        if (v && v.source === 'list' && v.confirmed) { status.textContent = `✓ ${f.presetSub || 'Study-area location'}`; status.className = 'place-status ok'; }
         else if (v && v.lat != null) { status.textContent = '✓ Place selected from map suggestions'; status.className = 'place-status ok'; }
         else if (v && v.text && v.confirmed) { status.textContent = '✓ Saved as typed'; status.className = 'place-status ok'; }
         else if (v && v.text) { status.textContent = 'Typed text will be saved as written'; status.className = 'place-status'; }
@@ -695,7 +710,7 @@ function buildPlaceField(q, f) {
         const qText = text.trim();
         const recent = recentFor(f, qText).concat(presetFor(f, qText));
         if (!qText) { recent.length ? showItems(recent) : hide(); return; }
-        if (qText.length < 2) { showItems(recent); return; }
+        if (qText.length < 2 || f.mapSearch === false) { showItems(recent); return; }
         if (!navigator.onLine) { showItems(recent, 'Offline: no map suggestions.'); return; }
         if (controller) controller.abort();
         controller = new AbortController();
@@ -719,7 +734,7 @@ function buildPlaceField(q, f) {
         clearTimeout(timer);
         // Refresh straight away so no stale suggestion from the previous text can be picked.
         const t = input.value.trim();
-        if (t) showItems(recentFor(f, t).concat(presetFor(f, t)), t.length >= 2 ? 'Searching…' : null); else search('');
+        if (t) showItems(recentFor(f, t).concat(presetFor(f, t)), t.length >= 2 && f.mapSearch !== false ? 'Searching…' : null); else search('');
         timer = setTimeout(() => search(input.value), 350);
     });
     input.addEventListener('focus', () => {
@@ -851,10 +866,22 @@ function buildRouteField(q, f) {
     btnMin.title = 'Minimize';
     btnMin.setAttribute('aria-label', 'Minimize map');
     const info = el('div', 'route-info');
-    box.append(mapEl, btnMin, tools, info);
+    // Full screen only: a search box that moves the map to a place.
+    const sWrap = el('div', 'place route-search', '<i class="fa-solid fa-magnifying-glass place-icon"></i>');
+    const sInput = el('input');
+    sInput.type = 'text';
+    sInput.placeholder = 'Search a place, road or shop';
+    sInput.autocomplete = 'off';
+    sInput.setAttribute('enterkeyhint', 'search');
+    sInput.setAttribute('aria-label', 'Search the map');
+    const sList = el('ul', 'suggest hidden');
+    sList.id = `suggest-${f.id}-search`;
+    sList.setAttribute('role', 'listbox');
+    sWrap.append(sInput, sList);
+    box.append(mapEl, btnMin, sWrap, tools, info);
     q.appendChild(box);
 
-    let map = null, layer = null, pending = 0;
+    let map = null, layer = null, pending = 0, areaBounds = null, pin = null;
 
     const current = () => {
         const r = answers[f.id];
@@ -937,6 +964,7 @@ function buildRouteField(q, f) {
         // Only the survey area (Kandy town) can be viewed and tapped.
         const bb = CONFIG.mapBounds;
         const area = Array.isArray(bb) && bb.length === 4 ? L.latLngBounds([bb[1], bb[0]], [bb[3], bb[2]]) : null;
+        areaBounds = area;
         const here = sessionLatLon();
         const home = CONFIG.surveyAreaCenter || { lat: 7.2906, lon: 80.6337 };
         const c = here && (!area || area.contains([here.lat, here.lon])) ? here : home;
@@ -1011,6 +1039,76 @@ function buildRouteField(q, f) {
         changed();
         draw();
     });
+    // ----- map search (full screen) -----
+    let sTimer = null, sCtrl = null, sItems = [];
+    const sHide = () => sList.classList.add('hidden');
+    const sShow = (rows, note) => {
+        sItems = rows;
+        sList.innerHTML = '';
+        rows.forEach(r => {
+            const li = el('li', '', `<div class="s-main">${escapeHtml(r.main)}</div>` + (r.sub ? `<div class="s-sub">${escapeHtml(r.sub)}</div>` : ''));
+            li.setAttribute('role', 'option');
+            li.addEventListener('mousedown', e => e.preventDefault());
+            li.addEventListener('click', () => goTo(r));
+            sList.appendChild(li);
+        });
+        if (note) sList.appendChild(el('li', 's-info', escapeHtml(note)));
+        else if (rows.length) sList.appendChild(el('li', 's-attrib', CONFIG.googlePlacesApiKey ? 'Powered by Google' : 'Suggestions © OpenStreetMap contributors'));
+        sList.classList.toggle('hidden', !rows.length && !note);
+    };
+    const runSearch = async () => {
+        const t = sInput.value.trim();
+        if (t.length < 2) { sHide(); return; }
+        if (!navigator.onLine) { sShow([], 'Offline: search needs internet.'); return; }
+        if (sCtrl) sCtrl.abort();
+        sCtrl = new AbortController();
+        if (!sItems.length) sShow([], 'Searching…');
+        try {
+            const found = await mapSearchSuggestions(t, sCtrl.signal);
+            sShow(found, found.length ? null : 'No places found in the Kandy town map area.');
+        } catch (e) {
+            if (e.name !== 'AbortError') sShow([], 'Search unavailable right now.');
+        }
+    };
+    const removePin = () => { if (pin) { pin.remove(); pin = null; } };
+    const goTo = async r => {
+        clearTimeout(sTimer);
+        if (sCtrl) sCtrl.abort();
+        sHide();
+        let lat = r.lat, lon = r.lon;
+        if (lat == null && r.placeId) {
+            const loc = await googlePlaceLocation(r.placeId).catch(() => null);
+            if (loc) { lat = loc.lat; lon = loc.lon; }
+        }
+        if (lat == null || !map) { showToast('No map position for this place', 'error'); return; }
+        if (areaBounds && !areaBounds.contains([lat, lon])) { showToast('Outside the Kandy town map area', 'error'); return; }
+        sInput.value = r.main;
+        sInput.blur();
+        map.setView([lat, lon], 18);
+        removePin();
+        // A red pin marks the place; tapping it adds it as a route point.
+        pin = L.marker([lat, lon], {
+            icon: L.divIcon({ className: 'route-search-pin', html: '<i class="fa-solid fa-location-dot"></i>', iconSize: [32, 32], iconAnchor: [16, 32] }),
+            keyboard: false
+        }).addTo(map);
+        pin.bindTooltip(`${escapeHtml(r.main)}<br><small>Tap the pin to add it as a point</small>`, { permanent: true, direction: 'top', offset: [0, -30], className: 'route-search-tip' });
+        pin.on('click', () => { const p = pin.getLatLng(); removePin(); addPoint(p); });
+    };
+    sInput.addEventListener('input', () => {
+        clearTimeout(sTimer);
+        if (sInput.value.trim().length < 2) { sItems = []; sHide(); return; }
+        sTimer = setTimeout(runSearch, 350);
+    });
+    sInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            clearTimeout(sTimer);
+            if (sItems[0]) goTo(sItems[0]); else runSearch();
+        } else if (e.key === 'Escape') sHide();
+    });
+    sInput.addEventListener('focus', () => { if (sItems.length) sShow(sItems); });
+    sInput.addEventListener('blur', () => setTimeout(sHide, 150));
+
     // Full screen moves the map into its own layer on <body>: inside the
     // scrolling form, iPhone Safari clips even a position:fixed element.
     let overlay = null, slot = null;
@@ -1027,6 +1125,10 @@ function buildRouteField(q, f) {
             slot.replaceWith(box);
             slot = null;
             overlay.classList.remove('open');
+            removePin();
+            sInput.value = '';
+            sItems = [];
+            sHide();
         }
         document.body.classList.toggle('route-full-open', on);
         setTimeout(() => { if (map) { map.invalidateSize(); fitToRoute(); } }, 150);
@@ -1060,11 +1162,18 @@ function placeSuggestions(text, nearby, signal) {
     return CONFIG.googlePlacesApiKey ? googleSuggestions(text, nearby, signal) : photonSuggestions(text, nearby, signal);
 }
 
+// Full-screen map search: places inside the map area (Kandy town).
+function mapSearchSuggestions(text, signal) {
+    if (CONFIG.googlePlacesApiKey) return googleSuggestions(text, true, signal);
+    return photonSuggestions(text, true, signal, CONFIG.mapBounds, 8);
+}
+
 // Free: Photon (komoot) over OpenStreetMap data. No key needed.
-async function photonSuggestions(text, nearby, signal) {
-    const p = new URLSearchParams({ q: text, limit: '6', lang: 'en' });
-    if (Array.isArray(CONFIG.placeSearchBbox) && CONFIG.placeSearchBbox.length === 4) p.set('bbox', CONFIG.placeSearchBbox.join(','));
-    const here = sessionLatLon();
+async function photonSuggestions(text, nearby, signal, bbox, limit) {
+    const p = new URLSearchParams({ q: text, limit: String(limit || 6), lang: 'en' });
+    const box = bbox || CONFIG.placeSearchBbox;
+    if (Array.isArray(box) && box.length === 4) p.set('bbox', box.join(','));
+    const here = sessionLatLon() || (bbox ? CONFIG.surveyAreaCenter : null);
     if (here) {
         p.set('lat', here.lat);
         p.set('lon', here.lon);
@@ -1168,7 +1277,9 @@ function buildRecord() {
         origin: origin.text, originLat: origin.lat, originLon: origin.lon,
         destination: dest.text, destinationLat: dest.lat, destinationLon: dest.lon,
         accessMode: singleValue('accessMode'),
+        accessBusRoute: answers.accessMode === 'Bus' ? placeParts('accessBusRoute').text : '',
         egressMode: singleValue('egressMode'),
+        egressBusRoute: answers.egressMode === 'Bus' ? placeParts('egressBusRoute').text : '',
         accessPoint: singleValue('accessPoint'),
         accessPointName: notesValue('accessPoint'),
         ...routeRecord(answers.route),
