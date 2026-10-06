@@ -48,6 +48,9 @@ const THEME_KEY = 'pedod_theme';
 //            presets: true = study-area locations; or the name of another list
 //              in config.js (e.g. 'busRoutes'), with presetSub as its caption
 //            mapSearch: false = only the lists / typed text, no map search
+//            cities: true = Sri Lankan cities and towns first, then other places
+//            cityRoutes: 'from' / 'to' = every Sri Lankan town as a bus route
+//              ("Badulla – Kandy" / "Kandy – Badulla")
 //            icon: Font Awesome name for the box icon
 //   single - pick one        multi - pick any number
 //   other: true adds "Other" with a text box
@@ -75,8 +78,8 @@ const MODES = [
 const FORM = [
     { id: 'gender', label: 'Gender', type: 'single', options: ['Male', 'Female'] },
     { id: 'age', label: 'Age category', type: 'single', options: ['Under 18', '18–40', '41–60', 'Over 60'] },
-    { id: 'origin', label: 'Origin', type: 'place', presets: true, hint: 'Where this trip started', placeholder: 'Start typing a location' },
-    { id: 'destination', label: 'Principal destination', type: 'place', presets: true, hint: 'Main place they are going to', placeholder: 'Start typing a location' },
+    { id: 'origin', label: 'Origin', type: 'place', presets: true, cities: true, hint: 'Where this trip started', placeholder: 'Start typing a location' },
+    { id: 'destination', label: 'Principal destination', type: 'place', presets: true, cities: true, hint: 'Main place they are going to', placeholder: 'Start typing a location' },
     {
         id: 'category', label: 'Respondent / trip category', type: 'single', other: true, grid: true,
         options: [
@@ -113,7 +116,7 @@ const FORM = [
         icon: 'fa-bus-simple', showIf: a => a.accessMode === 'Bus', hint: 'Arrived by bus', placeholder: 'Start typing a bus terminal / stand'
     },
     {
-        id: 'accessBusRoute', label: 'Bus route they came on', type: 'place', presets: 'busRoutes', presetSub: 'Bus route', mapSearch: false,
+        id: 'accessBusRoute', label: 'Bus route they came on', type: 'place', presets: 'busRoutes', presetSub: 'Bus route', mapSearch: false, cityRoutes: 'from',
         recent: true, recentGroup: 'busRoute', icon: 'fa-bus',
         showIf: a => a.accessMode === 'Bus', hint: 'e.g. Colombo – Kandy', placeholder: 'Type a town, e.g. Colombo'
     },
@@ -126,7 +129,7 @@ const FORM = [
         icon: 'fa-bus-simple', showIf: a => a.egressMode === 'Bus', hint: 'Leaving by bus', placeholder: 'Start typing a bus terminal / stand'
     },
     {
-        id: 'egressBusRoute', label: 'Bus route they will take', type: 'place', presets: 'busRoutes', presetSub: 'Bus route', mapSearch: false,
+        id: 'egressBusRoute', label: 'Bus route they will take', type: 'place', presets: 'busRoutes', presetSub: 'Bus route', mapSearch: false, cityRoutes: 'to',
         recent: true, recentGroup: 'busRoute', icon: 'fa-bus',
         showIf: a => a.egressMode === 'Bus', hint: 'e.g. Kandy – Kurunegala', placeholder: 'Type a town, e.g. Kurunegala'
     },
@@ -622,7 +625,7 @@ function buildPlaceField(q, f) {
             status.className = 'place-status' + (n ? ' ok' : '');
             return;
         }
-        if (v && v.source === 'list' && v.confirmed) { status.textContent = `✓ ${f.presetSub || 'Study-area location'}`; status.className = 'place-status ok'; }
+        if (v && (v.source === 'list' || v.source === 'route') && v.confirmed) { status.textContent = `✓ ${f.presetSub || 'Study-area location'}`; status.className = 'place-status ok'; }
         else if (v && v.lat != null) { status.textContent = '✓ Place selected from map suggestions'; status.className = 'place-status ok'; }
         else if (v && v.text && v.confirmed) { status.textContent = '✓ Saved as typed'; status.className = 'place-status ok'; }
         else if (v && v.text) { status.textContent = 'Typed text will be saved as written'; status.className = 'place-status'; }
@@ -710,13 +713,24 @@ function buildPlaceField(q, f) {
         const qText = text.trim();
         const recent = recentFor(f, qText).concat(presetFor(f, qText));
         if (!qText) { recent.length ? showItems(recent) : hide(); return; }
-        if (qText.length < 2 || f.mapSearch === false) { showItems(recent); return; }
+        if (qText.length < 2 || (f.mapSearch === false && !f.cityRoutes)) { showItems(recent); return; }
         if (!navigator.onLine) { showItems(recent, 'Offline: no map suggestions.'); return; }
         if (controller) controller.abort();
         controller = new AbortController();
         showItems(recent, 'Searching…');
         try {
-            const found = await placeSuggestions(qText, !!f.nearby, controller.signal);
+            let found;
+            if (f.cityRoutes) {
+                found = (await citySuggestions(qText, controller.signal)).map(c => cityRoute(f, c)).filter(Boolean);
+            } else {
+                // Cities and towns first (free search only; Google ranks them itself).
+                const [cities, places] = await Promise.all([
+                    f.cities && !CONFIG.googlePlacesApiKey ? citySuggestions(qText, controller.signal).catch(e => { if (e.name === 'AbortError') throw e; return []; }) : [],
+                    placeSuggestions(qText, !!f.nearby, controller.signal)
+                ]);
+                const cityNames = new Set(cities.map(c => c.main.toLowerCase()));
+                found = cities.concat(places.filter(p => !(p.city && cityNames.has(p.main.toLowerCase()))));
+            }
             showItems(recent.concat(found), found.length || recent.length ? null : 'No map matches.');
         } catch (e) {
             if (e.name === 'AbortError') return;
@@ -734,7 +748,7 @@ function buildPlaceField(q, f) {
         clearTimeout(timer);
         // Refresh straight away so no stale suggestion from the previous text can be picked.
         const t = input.value.trim();
-        if (t) showItems(recentFor(f, t).concat(presetFor(f, t)), t.length >= 2 && f.mapSearch !== false ? 'Searching…' : null); else search('');
+        if (t) showItems(recentFor(f, t).concat(presetFor(f, t)), t.length >= 2 && (f.mapSearch !== false || f.cityRoutes) ? 'Searching…' : null); else search('');
         timer = setTimeout(() => search(input.value), 350);
     });
     input.addEventListener('focus', () => {
@@ -783,6 +797,10 @@ const ROUTE_SERVICE = 'https://routing.openstreetmap.de/routed-foot/route/v1/foo
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
 const MAP_LAYER_KEY = 'pedod_map_layer';
 const mapRefreshers = [];
+// A street route is used only if it is at most this much longer than the
+// straight line between two taps (else the straight line is kept).
+const MAX_DETOUR_RATIO = 2.5;
+const MAX_DETOUR_EXTRA_M = 250;
 
 function samePoint(a, b) { return a && b && a[0] === b[0] && a[1] === b[1]; }
 
@@ -903,7 +921,7 @@ function buildRouteField(q, f) {
         const m = routeLength(r);
         const straight = r.routed.some(x => !x);
         info.innerHTML = `\u2713 ${n} points \u00b7 ${m >= 1000 ? (m / 1000).toFixed(2) + ' km' : Math.round(m) + ' m'}` +
-            (pending ? ' \u00b7 following streets\u2026' : straight && !pending ? ' \u00b7 some parts drawn as straight lines' : '');
+            (pending ? ' \u00b7 following streets\u2026' : straight && !pending ? ' \u00b7 some parts straight (add a point at each turn)' : '');
         info.className = 'route-info ok';
     };
 
@@ -935,6 +953,17 @@ function buildRouteField(q, f) {
                 if (!r || !samePoint(r.points[i], a) || !samePoint(r.points[i + 1], b)) return;
                 const coords = d && d.routes && d.routes[0] && d.routes[0].geometry && d.routes[0].geometry.coordinates;
                 if (!coords || coords.length < 2) return;
+                // A street route far longer than the straight line usually means a
+                // tap snapped to a path that is not connected (or across a river,
+                // railway, private land): keep the straight line instead.
+                const direct = haversineM(a, b);
+                const via = d.routes[0].distance || 0;
+                if (via > Math.max(direct * MAX_DETOUR_RATIO, direct + MAX_DETOUR_EXTRA_M)) {
+                    r.detour = r.detour || [];
+                    r.detour[i] = true;
+                    saveDraft();
+                    return;
+                }
                 r.segments[i] = [a].concat(coords.map(c => [+c[1].toFixed(6), +c[0].toFixed(6)])).concat([b]);
                 r.routed[i] = true;
                 saveDraft();
@@ -999,7 +1028,13 @@ function buildRouteField(q, f) {
         });
         if (area) L.rectangle(area, { color: '#facc15', weight: 2, dashArray: '6 6', fill: false, interactive: false }).addTo(map);
         layer = L.layerGroup().addTo(map);
+        // A double tap must not zoom, nor add the same point twice.
+        map.doubleClickZoom.disable();
+        let lastTap = null;
         map.on('click', e => {
+            const now = Date.now(), pt = e.containerPoint;
+            if (lastTap && now - lastTap.t < 400 && pt.distanceTo(lastTap.pt) < 20) return;
+            lastTap = { t: now, pt };
             if (outer && !outer.contains(e.latlng)) { showToast('Outside the map area', 'error'); return; }
             addPoint(e.latlng);
         });
@@ -1028,7 +1063,11 @@ function buildRouteField(q, f) {
         const r = current();
         if (!r.points.length) return;
         r.points.pop();
-        if (r.segments.length >= r.points.length && r.segments.length) { r.segments.pop(); r.routed.pop(); }
+        if (r.segments.length >= r.points.length && r.segments.length) {
+            r.segments.pop();
+            r.routed.pop();
+            if (r.detour) r.detour.length = r.segments.length;
+        }
         answers[f.id] = r.points.length ? r : null;
         changed();
         draw();
@@ -1164,6 +1203,31 @@ function placeSuggestions(text, nearby, signal) {
     return CONFIG.googlePlacesApiKey ? googleSuggestions(text, nearby, signal) : photonSuggestions(text, nearby, signal);
 }
 
+// Every city and town in Sri Lanka (OpenStreetMap place=city / town).
+async function citySuggestions(text, signal) {
+    const p = new URLSearchParams({ q: text, limit: '6', lang: 'en' });
+    p.append('osm_tag', 'place:city');
+    p.append('osm_tag', 'place:town');
+    if (Array.isArray(CONFIG.placeSearchBbox) && CONFIG.placeSearchBbox.length === 4) p.set('bbox', CONFIG.placeSearchBbox.join(','));
+    const res = await fetch('https://photon.komoot.io/api/?' + p.toString(), { signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    return (data.features || []).map(ft => {
+        const pr = ft.properties || {};
+        const [lon, lat] = (ft.geometry && ft.geometry.coordinates) || [null, null];
+        const sub = [pr.osm_value === 'city' ? 'City' : 'Town', pr.county || pr.state].filter(Boolean).join(' · ');
+        return { main: pr.name || '', sub, label: pr.name || '', lat, lon, source: 'osm', city: true };
+    }).filter(r => r.main);
+}
+
+// A town as a bus route to / from the survey town: "Badulla – Kandy".
+function cityRoute(f, c) {
+    const home = CONFIG.surveyAreaName || 'Kandy';
+    if (c.main.toLowerCase() === home.toLowerCase()) return null;
+    const label = f.cityRoutes === 'from' ? `${c.main} – ${home}` : `${home} – ${c.main}`;
+    return { main: label, sub: `Bus route · ${c.sub}`, label, lat: null, lon: null, source: 'route' };
+}
+
 // Full-screen map search: places inside the map's outer area (greater Kandy).
 function mapSearchSuggestions(text, signal) {
     if (CONFIG.googlePlacesApiKey) return googleSuggestions(text, true, signal);
@@ -1195,7 +1259,7 @@ async function photonSuggestions(text, nearby, signal, bbox, limit) {
         });
         const sub = parts.join(', ');
         const [lon, lat] = (ft.geometry && ft.geometry.coordinates) || [null, null];
-        return { main, sub, label: sub ? `${main}, ${sub}` : main, lat, lon, source: 'osm' };
+        return { main, sub, label: sub ? `${main}, ${sub}` : main, lat, lon, source: 'osm', city: pr.osm_key === 'place' && (pr.osm_value === 'city' || pr.osm_value === 'town') };
     }).filter(r => r.main);
 }
 
