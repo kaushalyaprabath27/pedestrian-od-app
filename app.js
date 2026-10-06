@@ -1000,10 +1000,10 @@ function buildRouteField(q, f) {
         const home = CONFIG.surveyAreaCenter || { lat: 7.2906, lon: 80.6337 };
         const c = here && (!outer || outer.contains([here.lat, here.lon])) ? here : home;
         map = L.map(mapEl, {
-            zoomControl: true, attributionControl: true, minZoom: outer ? 13 : 3, maxZoom: 20,
+            zoomControl: true, attributionControl: true, minZoom: CONFIG.mapMinZoom || 7, maxZoom: 20,
             maxBounds: outer, maxBoundsViscosity: 1.0
         }).setView([c.lat, c.lon], 17);
-        const tileBounds = outer ? outer.pad(0.1) : undefined;
+        const tileBounds = outer ? outer.pad(0.2) : undefined;
         const satellite = L.layerGroup([
             L.tileLayer(ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 maxNativeZoom: 19, maxZoom: 20, bounds: tileBounds,
@@ -1125,7 +1125,7 @@ function buildRouteField(q, f) {
         if (areaBounds && !areaBounds.contains([lat, lon])) { showToast('Outside the map area', 'error'); return; }
         sInput.value = r.main;
         sInput.blur();
-        map.setView([lat, lon], 18);
+        map.setView([lat, lon], r.city ? 14 : 18); // a town: show its centre; a place: close up
         removePin();
         // A red pin marks the place; tapping it adds it as a route point.
         pin = L.marker([lat, lon], {
@@ -1228,10 +1228,16 @@ function cityRoute(f, c) {
     return { main: label, sub: `Bus route · ${c.sub}`, label, lat: null, lon: null, source: 'route' };
 }
 
-// Full-screen map search: places inside the map's outer area (greater Kandy).
-function mapSearchSuggestions(text, signal) {
+// Full-screen map search: places inside the map's outer area (all of Sri Lanka).
+// Every matching Sri Lankan city / town first, then other places (nearest first).
+async function mapSearchSuggestions(text, signal) {
     if (CONFIG.googlePlacesApiKey) return googleSuggestions(text, true, signal);
-    return photonSuggestions(text, true, signal, CONFIG.mapOuterBounds || CONFIG.mapBounds, 8);
+    const [cities, places] = await Promise.all([
+        citySuggestions(text, signal).catch(e => { if (e.name === 'AbortError') throw e; return []; }),
+        photonSuggestions(text, true, signal, CONFIG.mapOuterBounds || CONFIG.mapBounds, 8)
+    ]);
+    const cityNames = new Set(cities.map(c => c.main.toLowerCase()));
+    return cities.concat(places.filter(p => !(p.city && cityNames.has(p.main.toLowerCase()))));
 }
 
 // Free: Photon (komoot) over OpenStreetMap data. No key needed.

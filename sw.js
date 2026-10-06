@@ -1,6 +1,6 @@
 // Offline shell for the Pedestrian O-D Survey PWA.
 // Bump CACHE_NAME whenever app files change so devices pick up the update.
-const CACHE_NAME = 'pedestrian-od-v14';
+const CACHE_NAME = 'pedestrian-od-v15';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
