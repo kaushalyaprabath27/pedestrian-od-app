@@ -72,9 +72,12 @@ window.PEDOD_CONFIG = {
         'Kandy – Hanguranketha'
     ],
 
-    // Route map: only this area can be viewed and tapped,
+    // Route map: the survey area, shown as a dashed yellow box,
     // [west, south, east, north] (Kandy town).
     mapBounds: [80.618, 7.276, 80.655, 7.308],
+    // The map can be moved and tapped anywhere inside this larger area
+    // (Peradeniya, Katugastota, Kundasale...), [west, south, east, north].
+    mapOuterBounds: [80.56, 7.22, 80.72, 7.36],
     // Map shown first: 'satellite' or 'street'.
     mapDefaultLayer: 'satellite'
 };

@@ -961,18 +961,20 @@ function buildRouteField(q, f) {
     const ensureMap = () => {
         if (map) return true;
         if (typeof L === 'undefined') { updateInfo(); return false; }
-        // Only the survey area (Kandy town) can be viewed and tapped.
-        const bb = CONFIG.mapBounds;
-        const area = Array.isArray(bb) && bb.length === 4 ? L.latLngBounds([bb[1], bb[0]], [bb[3], bb[2]]) : null;
-        areaBounds = area;
+        // The survey area (Kandy town) is outlined; the map can be moved and
+        // tapped anywhere inside the larger outer area around it.
+        const toBounds = bb => Array.isArray(bb) && bb.length === 4 ? L.latLngBounds([bb[1], bb[0]], [bb[3], bb[2]]) : null;
+        const area = toBounds(CONFIG.mapBounds);
+        const outer = toBounds(CONFIG.mapOuterBounds) || (area ? area.pad(0.05) : null);
+        areaBounds = outer;
         const here = sessionLatLon();
         const home = CONFIG.surveyAreaCenter || { lat: 7.2906, lon: 80.6337 };
-        const c = here && (!area || area.contains([here.lat, here.lon])) ? here : home;
+        const c = here && (!outer || outer.contains([here.lat, here.lon])) ? here : home;
         map = L.map(mapEl, {
-            zoomControl: true, attributionControl: true, minZoom: area ? 15 : 3, maxZoom: 20,
-            maxBounds: area ? area.pad(0.05) : null, maxBoundsViscosity: 1.0
+            zoomControl: true, attributionControl: true, minZoom: outer ? 13 : 3, maxZoom: 20,
+            maxBounds: outer, maxBoundsViscosity: 1.0
         }).setView([c.lat, c.lon], 17);
-        const tileBounds = area ? area.pad(0.3) : undefined;
+        const tileBounds = outer ? outer.pad(0.1) : undefined;
         const satellite = L.layerGroup([
             L.tileLayer(ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 maxNativeZoom: 19, maxZoom: 20, bounds: tileBounds,
@@ -998,7 +1000,7 @@ function buildRouteField(q, f) {
         if (area) L.rectangle(area, { color: '#facc15', weight: 2, dashArray: '6 6', fill: false, interactive: false }).addTo(map);
         layer = L.layerGroup().addTo(map);
         map.on('click', e => {
-            if (area && !area.contains(e.latlng)) { showToast('Outside the Kandy town map area', 'error'); return; }
+            if (outer && !outer.contains(e.latlng)) { showToast('Outside the map area', 'error'); return; }
             addPoint(e.latlng);
         });
         draw();
@@ -1065,7 +1067,7 @@ function buildRouteField(q, f) {
         if (!sItems.length) sShow([], 'Searching…');
         try {
             const found = await mapSearchSuggestions(t, sCtrl.signal);
-            sShow(found, found.length ? null : 'No places found in the Kandy town map area.');
+            sShow(found, found.length ? null : 'No places found in the map area.');
         } catch (e) {
             if (e.name !== 'AbortError') sShow([], 'Search unavailable right now.');
         }
@@ -1081,7 +1083,7 @@ function buildRouteField(q, f) {
             if (loc) { lat = loc.lat; lon = loc.lon; }
         }
         if (lat == null || !map) { showToast('No map position for this place', 'error'); return; }
-        if (areaBounds && !areaBounds.contains([lat, lon])) { showToast('Outside the Kandy town map area', 'error'); return; }
+        if (areaBounds && !areaBounds.contains([lat, lon])) { showToast('Outside the map area', 'error'); return; }
         sInput.value = r.main;
         sInput.blur();
         map.setView([lat, lon], 18);
@@ -1162,10 +1164,10 @@ function placeSuggestions(text, nearby, signal) {
     return CONFIG.googlePlacesApiKey ? googleSuggestions(text, nearby, signal) : photonSuggestions(text, nearby, signal);
 }
 
-// Full-screen map search: places inside the map area (Kandy town).
+// Full-screen map search: places inside the map's outer area (greater Kandy).
 function mapSearchSuggestions(text, signal) {
     if (CONFIG.googlePlacesApiKey) return googleSuggestions(text, true, signal);
-    return photonSuggestions(text, true, signal, CONFIG.mapBounds, 8);
+    return photonSuggestions(text, true, signal, CONFIG.mapOuterBounds || CONFIG.mapBounds, 8);
 }
 
 // Free: Photon (komoot) over OpenStreetMap data. No key needed.
